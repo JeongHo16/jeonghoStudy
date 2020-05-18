@@ -1,1 +1,0 @@
-ADD_EXECUTABLE(diary_exe main.c memo.c calendar.c)

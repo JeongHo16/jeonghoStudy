@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/jeongho/Study/cmakeStudy/calendar.c
+diary.h
+/home/jeongho/Study/cmakeStudy/diary.h
+
+/home/jeongho/Study/cmakeStudy/diary.h
+stdio.h
+-
+
+/home/jeongho/Study/cmakeStudy/main.c
+diary.h
+/home/jeongho/Study/cmakeStudy/diary.h
+
+/home/jeongho/Study/cmakeStudy/memo.c
+diary.h
+/home/jeongho/Study/cmakeStudy/diary.h
+
