@@ -2,7 +2,7 @@ kinect demo
 mcon 공의 위치
 
 kinecttracker 
-공의 위치를 
+공의 위치를 update
 
 kinectmodule onestep
 trackskeleton관절의 종류와 위치 스테이트 데이타에 저장
@@ -14,4 +14,4 @@ kovarmetric y축으로만 돌려서 비교하는 메트릭
 
 예제에서 포인트 클라우드 뽑아서 입력으로 넣고 비슷한 자세를 출력
 
-run 은 별로 하는일 없음
+learn 은 별로 하는일 없음

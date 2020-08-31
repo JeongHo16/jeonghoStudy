@@ -12,8 +12,8 @@ config = {
 		{'Neck', 'Head', vector3(0,0,0), reversed=false},--0
 		{'LeftElbow', 'Leftwrist', vector3(0,0,0), reversed=false},--7
 		{'RightElbow', 'Rightwrist', vector3(0,0,0), reversed=false},--13
-		{'LeftKnee', 'LeftAnkle', vector3(0, -0.06, 0.08), reversed=false},--18
-		{'RightKnee', 'RightAnkle', vector3(0, -0.06, 0.08), reversed=false},--22
+		{'LeftKnee', 'LeftAnkle', vector3(0, 0, 0), reversed=false},--18
+		{'RightKnee', 'RightAnkle', vector3(0, 0, 0), reversed=false},--22
 	},
 	skinScale=1
 }
@@ -25,11 +25,9 @@ function ctor()
 	this:create("Check_Button", "Tracking", "Tracking")
 	this:widget(0):checkButtonValue(false)
 	this:widget(0):buttonShortcut("t")
---[[this:create("Button", "Load Stick_Human", "Load Stick_Human")
-	this:widget(0):buttonShortcut("l")
 	this:create("Button", "Check Viewpoint", "Check Viewpoint")
 	this:create("Check_Button", "drawAxes", "drawAxes")
-	this:widget(0):checkButtonValue(false)]]
+	this:widget(0):checkButtonValue(false)
 
 	this:updateLayout()
 	
@@ -44,12 +42,13 @@ function ctor()
 	tracking = false
 	
 	mLoader = MainLib.VRMLloader(config[1])
-	
---	mMot=loadMotion(config[1], config[2])
---	mLoader=mMot.loader
-	
+--	mLoader:Scale(0.8)
+
 --	mMotionDOFcontainer = MotionDOFcontainer(mLoader.dofInfo, config[2])
 --	mMotionDOF = mMotionDOFcontainer.mot
+
+--	mMot=loadMotion(config[1], config[2])
+--	mLoader=mMot.loader
 	
 --	mMotionDOF = mMot.motionDOFcontainer 
 
@@ -57,10 +56,8 @@ function ctor()
 	mSkin:scale(1,1,1)
 	mSkin:setTranslation(0,108,0)
 
---	print(mMotionDOF:row(0):size())--67
 	mPose = vectorn()--제대로 초기화-bvh불러와서 했는데 dof인지 아닌지 모르겠음
 	mLoader:getPoseDOF(mPose)
-	--mPose:assign(mMotionDOF:row(0))
 	mSkin:setPoseDOF(mPose)
 
 	mSolverInfo=createIKsolver(solver, mLoader, config[3])
@@ -77,48 +74,35 @@ function ctor()
 		opos=opos+vector3(0, 108, 0)
 		originalPos[i+1]=opos*config.skinScale--mskin:scale 과 비교
 	end
-	--table.insert(originalPos, mLoader:bone(1):getFrame().translation*config.skinScale)
 	local hipPos = mLoader:bone(1):getFrame().translation + vector3(0, 108, 0)
 	table.insert(originalPos, hipPos*config.skinScale)
---	for i=1, #originalPos do
---		print(originalPos[i])
---		originalPos[i] = originalPos[i] + vector3(0,108,0) 
---		print(originalPos[i])
---	end
 
 	mCON=Constraints(unpack(originalPos))
-	mCON:connect(eventFunction)
-	--mSkin:setPoseDOF(mPose)
-	--mLoader:setPoseDOF(mMotionDOF:row(0))
+	--mCON:connect(eventFunction)
 
-	for i=0, mLoader:numBone()-1 do
-		--print(mLoader:bone(i))
-		local pos = mLoader:getBoneByTreeIndex(i):getFrame().translation + vector3(0, 108, 0)
-		--dbg.namedDraw("Sphere", pos, tostring(mLoader:bone(i)), "red", 3)
-		--if tostring(mLoader:bone(i))=="Hips" then
-			dbg.draw("Sphere", pos, tostring(mLoader:bone(i)), "red", 3)
-		--end
-	end
+--	for i=0, mLoader:numBone()-1 do
+--		print(mLoader:bone(i))
+--		local pos = mLoader:getBoneByTreeIndex(i):getFrame().translation + vector3(0, 108, 0)
+--		--dbg.namedDraw("Sphere", pos, tostring(mLoader:bone(i)), "red", 3)
+--		--if tostring(mLoader:bone(i))=="Hips" then
+--			dbg.draw("Sphere", pos, tostring(mLoader:bone(i)), "red", 3)
+--		--end
+--	end
 
+--	conNeckLen=mLoader:getBoneByName("Neck"):getFrame().translation:distance(mLoader:getBoneByName("Head"):getFrame().translation)
+--	conLegLen=mLoader:getBoneByName("RightHip"):getFrame().translation:distance(mLoader:getBoneByName("RightKnee"):getFrame().translation)+
+--	mLoader:getBoneByName("RightKnee"):getFrame().translation:distance(mLoader:getBoneByName("RightAnkle"):getFrame().translation)
+--	conArmLen=mLoader:getBoneByName("RightShoulder"):getFrame().translation:distance(mLoader:getBoneByName("RightElbow"):getFrame().translation)+
+--	mLoader:getBoneByName("RightElbow"):getFrame().translation:distance(mLoader:getBoneByName("RightWrist"):getFrame().translation)
 end
 
 function dtor()
 end
 
 function frameMove(fElapsedTime)
-	for i=0, mLoader:numBone()-1 do
-		--print(mLoader:bone(i))
-		local pos = mLoader:getBoneByTreeIndex(i):getFrame().translation + vector3(0, 108, 0)
-		--dbg.namedDraw("Sphere", pos, tostring(mLoader:bone(i)), "red", 3)
-		--if tostring(mLoader:bone(i))=="Hips" then
-			dbg.draw("Sphere", pos, tostring(mLoader:bone(i)), "green", 3)
-		--end
-	end
-	--print(mLoader:getBoneByName('LeftWrist'):getFrame().translation)
-	--dbg.draw("Sphere", getJointCoords(i), "ball"..i, "red", 5)
 	if tracking then
 		nuiListener:waitUpdate()
-		drawSkeleton()
+		--drawSkeleton()
 		limbik()
 	end
 end
@@ -142,20 +126,12 @@ function onCallback(w, userData)
 	elseif w:id()=="Check Viewpoint" then
 		print(RE.viewpoint().vpos)
 		print(RE.viewpoint().vat)
---[[	elseif w:id()=="Load Stick_Human" then
-		mLoader=MainLib.VRMLloader ("../Resource/jae/social_p1/social_p1.wrl")
-		mSkin = RE.createVRMLskin(mLoader, false)
-		mSkin:scale(1,1,1)
-		mSkin:setTranslation(0,108,0)
-		mLoader:printHierarchy()
-		print(mLoader:numBone())
-		]]
---[[	elseif w:id()=="drawAxes" then
+	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
 		else
 			dbg.erase("Axes", "axes")
-			end]]
+		end
 	end
 end
 
@@ -167,28 +143,45 @@ function handleRendererEvent(ev, button, x,y)
 end
 
 function conPosUpdate()
---	mCON.conPos(0):assign(getJointCoords(0))
---	mCON.conPos(1):assign(getJointCoords(13))
-	--mCON.conPos(1):assign(getJointCoords(7))
---	mCON.conPos(3):assign(getJointCoords(22))
---	mCON.conPos(4):assign(getJointCoords(18))
+	local s=1.3
+	mCON.conPos(0):assign(getJointPos(0)*s)
+	mCON.conPos(1):assign(getJointPos(7)*s)
+	mCON.conPos(2):assign(getJointPos(13)*s)
+	mCON.conPos(3):assign(getJointPos(18)*s)
+	mCON.conPos(4):assign(getJointPos(22)*s)
+	mCON.conPos(5):assign(getJointPos(3)*s)
+
+--	mCON.conPos(0):assign(getJointPos(0))
+--	mCON.conPos(1):assign(getJointPos(7))
+--	mCON.conPos(2):assign(getJointPos(13))
+--	mCON.conPos(3):assign(getJointPos(18))
+--	mCON.conPos(4):assign(getJointPos(22))
+--	mCON.conPos(5):assign(getJointPos(3))
+	mCON:drawConstraints()
 end
+
+--function getNuiLen()
+--	local neck=getJointPos(1):distance(getJointPos(0))
+--	local armLen=getJointPos(5):distance(getJointPos(6))+getJointPos(6):distance(getJointPos(7))
+--	local legLen=getJointPos(16):distance(getJointPos(17))+getJointPos(17):distance(getJointPos(18))
+--	return neck, armLen, legLen
+--end
 
 function drawSkeleton()--ToDo: 실제 그려지는 ball은 19개. collar가 문제인듯.
 	if nuiListener:isTracking() then
 		for i=0, 23 do
 			if not(i==9 or i==15 or i==19 or i==23) then
-				dbg.draw("Sphere", getJointCoords(i), "ball"..i, "red", 3)
+				dbg.draw("Sphere", getJointPos(i), "ball"..i, "red", 3)
 			end
 		end
 	end
 end
 
-function getJointCoords(idx)
+function getJointPos(idx)
 	local pos = vector3()
 	pos.x = nuiListener:getJointRealCoords(idx,0)/10
-	pos.y = nuiListener:getJointRealCoords(idx,1)/10 + 100
-	pos.z = nuiListener:getJointRealCoords(idx,2)/10
+	pos.y = nuiListener:getJointRealCoords(idx,1)/10 + 130
+	pos.z = -nuiListener:getJointRealCoords(idx,2)/10 --지금 카메라각도에서 wrl과 맞추기 위해 -1x
 	return pos
 end
 
@@ -251,18 +244,3 @@ end
 function eventFunction()
 	limbik()
 end
-
---[[
-function loadMotion(skel, motion, skinScale)
-	local mot={}
-	mot.loader=MainLib.VRMLloader (skel)
-	mot.motionDOFcontainer=MotionDOFcontainer(mot.loader.dofInfo, motion)
-	if skinScale then
-		mot.skin=createSkin(skel, mot.loader, skinScale)
-		mot.skin:applyMotionDOF(mot.motionDOFcontainer.mot)
-		mot.skin:setMaterial('lightgrey_transparent')
-	end
-	return mot
-end
-]]
-
