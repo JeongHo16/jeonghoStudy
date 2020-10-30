@@ -99,16 +99,12 @@ end
 
 KinectTrackerFromGUI=LUAclass()
 
-tracking = false
 function KinectTrackerFromGUI:__init(loader, initialPose)
 	require("RigidBodyWin/subRoutines/Constraints")
 	self.loader=loader
 	if initialPose then
 		self.initialPose=initialPose:copy()
 	end
-	nuiListener = NuiListener()
-	nuiListener:startNuitrack()
-	tracking = true
 end
 
 function KinectTrackerFromGUI:finalizeSourceMotion(mMap, mMot)
@@ -121,19 +117,14 @@ function KinectTrackerFromGUI:finalizeSourceMotion(mMap, mMot)
 		self.initialPose=mMot.motionDOFcontainer.mot:row(0):copy()
 	end
 	self.loader:setPoseDOF(self.initialPose)
-	--[[local rootPos=loader:bone(1):getFrame().translation:copy()
-	--print(rootPos.x.." ".. rootPos.y.." ".. rootPos.z)-- ok	
+	local rootPos=loader:bone(1):getFrame().translation:copy()
 	self.deltas=vector3N(4)
 	self.deltas(0):assign( rootPos-mMap.NUI_SKELETON_POSITION_HIP_RIGHT:getFrame().translation) 
 	self.deltas(1):assign( rootPos-mMap.NUI_SKELETON_POSITION_HIP_LEFT:getFrame().translation) 
 	self.deltas(2):assign( rootPos-mMap.NUI_SKELETON_POSITION_SHOULDER_RIGHT:getFrame().translation)
 	self.deltas(3):assign( rootPos-mMap.NUI_SKELETON_POSITION_SHOULDER_LEFT:getFrame().translation) 
 	self.deltas=self.deltas*(config.skinScale/config.kinectScale)
-	--print(self.deltas)
---	for i=0, 3 do
---		print(self.deltas(i))
---		dbg.namedDraw("Sphere", self.deltas(i), "deltas"..i, "red", 1)
---	end
+
 	local pos={
 		rootPos*config.skinScale,
 		mMap.NUI_SKELETON_POSITION_ANKLE_RIGHT:getFrame().translation:copy()*config.skinScale, 
@@ -141,117 +132,31 @@ function KinectTrackerFromGUI:finalizeSourceMotion(mMap, mMot)
 		mMap.NUI_SKELETON_POSITION_WRIST_RIGHT:getFrame().translation:copy()*config.skinScale, 
 		mMap.NUI_SKELETON_POSITION_WRIST_LEFT:getFrame().translation:copy()*config.skinScale,
 	}
---	local pos2={
---		rootPos,
---		mMap.NUI_SKELETON_POSITION_ANKLE_RIGHT:getFrame().translation:copy(), 
---		mMap.NUI_SKELETON_POSITION_ANKLE_LEFT:getFrame().translation:copy(), 
---		mMap.NUI_SKELETON_POSITION_WRIST_RIGHT:getFrame().translation:copy(), 
---		mMap.NUI_SKELETON_POSITION_WRIST_LEFT:getFrame().translation:copy(),
---	}
---	for i=1, #pos do 
---		local p = vector3(pos2[i].x, pos2[i].y, pos2[i].z)
---		print(p)
---		dbg.draw("Sphere", p, "rootPos"..i, "red", 10)
---	end
-	self.CON=Constraints(unpack(pos))]]
+	self.CON=Constraints(unpack(pos))
 end
-
-function getJointPos(idx)
-	local pos = vector3(
-	nuiListener:getJointRealCoords(idx,0)/1000,
-	nuiListener:getJointRealCoords(idx,1)/1000,
-	nuiListener:getJointRealCoords(idx,2)/1000)
-
-	return pos
-end
-
-function getDeltas(rootPos)
-	local deltas = vector3N(4)
-	deltas(0):assign(rootPos - getJointPos(20))--hip_right
-	deltas(1):assign(rootPos - getJointPos(16))--hip_left
-	deltas(2):assign(rootPos - getJointPos(11))--shoulder_rigth
-	deltas(3):assign(rootPos - getJointPos(5))--shoulder_left
-	deltas = deltas*(config.skinScale/config.kinectScale)
-
-	--print(deltas)
-	return deltas
-end
-
-function getPos(rootPos)
-	local pos = {
-		rootPos*config.skinScale,
-		getJointPos(22)*config.skinScale,--ankle_right
-		getJointPos(18)*config.skinScale,--ankle_left
-		getJointPos(13)*config.skinScale,--wrist_right
-		getJointPos(7)*config.skinScale,--wrist_left
-	}
-
---	for i=1, 5 do
---		print(pos[i]/100)
---	end
-	return pos
-end
-
 function KinectTrackerFromGUI:trackSkeleton()
 	local state=intvectorn(NUI_SKELETON_POSITION_COUNT+1)
 	local data=vectorn(NUI_SKELETON_POSITION_COUNT*3)
 	state:setAllValue(STATE_TRACKED)
 	data:setAllValue(0)
 
-	if tracking then
-		nuiListener:waitUpdate()
-		local rootPos = getJointPos(3)--hip
-		self.deltas = getDeltas(rootPos)
-		local pos = getPos(rootPos)
+	-- A : meter unit
+	-- B : kinect unit
+	-- C : cm unit == A*skinScale
+	-- C==B*kinectScale+kinectPosOffset
+	-- (C-kinectPosOffset)*(1/kinectScale) == B
+	
+	local pos=(self.CON.conPos-config.kinectPosOffset)*(1/config.kinectScale)
+	data:setVec3(3*NUI_SKELETON_POSITION_HIP_CENTER, pos(0))
+	data:setVec3(3*NUI_SKELETON_POSITION_ANKLE_RIGHT, pos(1))
+	data:setVec3(3*NUI_SKELETON_POSITION_ANKLE_LEFT, pos(2))
+	data:setVec3(3*NUI_SKELETON_POSITION_WRIST_RIGHT, pos(3))
+	data:setVec3(3*NUI_SKELETON_POSITION_WRIST_LEFT, pos(4))
+	data:setVec3(3*NUI_SKELETON_POSITION_HIP_RIGHT, pos(0)-self.deltas(0))
+	data:setVec3(3*NUI_SKELETON_POSITION_HIP_LEFT, pos(0)-self.deltas(1))
+	data:setVec3(3*NUI_SKELETON_POSITION_SHOULDER_RIGHT, pos(0)-self.deltas(2))
+	data:setVec3(3*NUI_SKELETON_POSITION_SHOULDER_LEFT, pos(0)-self.deltas(3))
 
-		for i=1, #pos do 
-			local p = vector3(pos[i].x, pos[i].y, pos[i].z)
-			--dbg.draw("Sphere", p, "rootPos"..i, "red", 10)
-		end
-
-		self.CON=Constraints(unpack(pos))
-		--local state=intvectorn(NUI_SKELETON_POSITION_COUNT+1)-- 위로 올림 
-		--local data=vectorn(NUI_SKELETON_POSITION_COUNT*3)
-		--state:setAllValue(STATE_TRACKED)
-		--data:setAllValue(0)
-
-		-- A : meter unit
-		-- B : kinect unit
-		-- C : cm unit == A*skinScale
-		-- C==B*kinectScale+kinectPosOffset
-		-- (C-kinectPosOffset)*(1/kinectScale) == B
-
-		local pos=(self.CON.conPos-config.kinectPosOffset)*(1/config.kinectScale)
-
-		--	print(self.CON.conPos)
-		--	print(pos)
-		data:setVec3(3*NUI_SKELETON_POSITION_HIP_CENTER, pos(0))
-		data:setVec3(3*NUI_SKELETON_POSITION_ANKLE_RIGHT, pos(1))
-		data:setVec3(3*NUI_SKELETON_POSITION_ANKLE_LEFT, pos(2))
-		data:setVec3(3*NUI_SKELETON_POSITION_WRIST_RIGHT, pos(3))
-		data:setVec3(3*NUI_SKELETON_POSITION_WRIST_LEFT, pos(4))
-		data:setVec3(3*NUI_SKELETON_POSITION_HIP_RIGHT, pos(0)-self.deltas(0))
-		data:setVec3(3*NUI_SKELETON_POSITION_HIP_LEFT, pos(0)-self.deltas(1))
-		data:setVec3(3*NUI_SKELETON_POSITION_SHOULDER_RIGHT, pos(0)-self.deltas(2))
-		data:setVec3(3*NUI_SKELETON_POSITION_SHOULDER_LEFT, pos(0)-self.deltas(3))
-
-		--print("data size is "..data:size())
-		--for i=0, data:size()-1, 3 do
-		--	print("data["..i.."]: "..data(i).." "..data(i+1).." "..data(i+2))
-		--end
-
-		--[[print(data)
-		print(NUI_SKELETON_POSITION_HIP_CENTER)
-		print(NUI_SKELETON_POSITION_ANKLE_RIGHT)
-		print(NUI_SKELETON_POSITION_ANKLE_LEFT)
-		print(NUI_SKELETON_POSITION_WRIST_RIGHT)
-		print(NUI_SKELETON_POSITION_WRIST_LEFT)
-		print(NUI_SKELETON_POSITION_HIP_RIGHT)
-		print(NUI_SKELETON_POSITION_HIP_LEFT)
-		print(NUI_SKELETON_POSITION_SHOULDER_RIGHT)
-		print(NUI_SKELETON_POSITION_SHOULDER_LEFT)
-		]]
-	end
 
 	if false then
 		local v=vectorn(5*3)
@@ -282,4 +187,123 @@ function getMatrix_to3Dcoord(kinectScale)
 	to3Dcoord:leftMultScaling(s,s,s)
 	to3Dcoord:leftMultTranslation(config.kinectPosOffset)
 	return to3Dcoord
+end
+
+KinectTrackerFromDevice=LUAclass()
+
+function KinectTrackerFromDevice:__init()
+	require("RigidBodyWin/subRoutines/Constraints")
+	self.nuiListener=NuiListener()
+	self.nuiListener:startNuitrack()
+	self.start = true 
+	self.tracking = false
+end
+
+function KinectTrackerFromDevice:finalizeSourceMotion(mMap, mMot)
+	local loader=self.loader
+	if not loader then
+		self.loader=mMot.loader
+		loader=self.loader
+	end
+	if not self.initialPose then
+		self.initialPose=mMot.motionDOFcontainer.mot:row(0):copy()
+	end
+	self.loader:setPoseDOF(self.initialPose)
+	local rootPos=loader:bone(1):getFrame().translation:copy()
+	self.deltas=vector3N(4)
+	self.deltas(0):assign( rootPos-mMap.NUI_SKELETON_POSITION_HIP_RIGHT:getFrame().translation) 
+	self.deltas(1):assign( rootPos-mMap.NUI_SKELETON_POSITION_HIP_LEFT:getFrame().translation) 
+	self.deltas(2):assign( rootPos-mMap.NUI_SKELETON_POSITION_SHOULDER_RIGHT:getFrame().translation)
+	self.deltas(3):assign( rootPos-mMap.NUI_SKELETON_POSITION_SHOULDER_LEFT:getFrame().translation) 
+	self.deltas=self.deltas*(config.skinScale/config.kinectScale)
+
+	local pos={
+		rootPos*config.skinScale,
+		mMap.NUI_SKELETON_POSITION_ANKLE_RIGHT:getFrame().translation:copy()*config.skinScale, 
+		mMap.NUI_SKELETON_POSITION_ANKLE_LEFT:getFrame().translation:copy()*config.skinScale, 
+		mMap.NUI_SKELETON_POSITION_WRIST_RIGHT:getFrame().translation:copy()*config.skinScale, 
+		mMap.NUI_SKELETON_POSITION_WRIST_LEFT:getFrame().translation:copy()*config.skinScale,
+	}
+	self.CON=Constraints(unpack(pos))
+end
+function KinectTrackerFromDevice:trackSkeleton()
+	local state=intvectorn(NUI_SKELETON_POSITION_COUNT+1)
+	local data=vectorn(NUI_SKELETON_POSITION_COUNT*3)
+	state:setAllValue(STATE_TRACKED)
+	data:setAllValue(0)
+
+	-- A : meter unit
+	-- B : kinect unit
+	-- C : cm unit == A*skinScale
+	-- C==B*kinectScale+kinectPosOffset
+	-- (C-kinectPosOffset)*(1/kinectScale) == B
+	self:conposUpdateFromUser()	
+	self.CON:drawConstraints()
+	local pos=(self.CON.conPos-config.kinectPosOffset)*(1/config.kinectScale)
+	data:setVec3(3*NUI_SKELETON_POSITION_HIP_CENTER, pos(0))
+	data:setVec3(3*NUI_SKELETON_POSITION_ANKLE_RIGHT, pos(1))
+	data:setVec3(3*NUI_SKELETON_POSITION_ANKLE_LEFT, pos(2))
+	data:setVec3(3*NUI_SKELETON_POSITION_WRIST_RIGHT, pos(3))
+	data:setVec3(3*NUI_SKELETON_POSITION_WRIST_LEFT, pos(4))
+	data:setVec3(3*NUI_SKELETON_POSITION_HIP_RIGHT, pos(0)-self.deltas(0))
+	data:setVec3(3*NUI_SKELETON_POSITION_HIP_LEFT, pos(0)-self.deltas(1))
+	data:setVec3(3*NUI_SKELETON_POSITION_SHOULDER_RIGHT, pos(0)-self.deltas(2))
+	data:setVec3(3*NUI_SKELETON_POSITION_SHOULDER_LEFT, pos(0)-self.deltas(3))
+--	if self.tracking then
+--		self:drawSkeletonJoints()
+--	end
+	
+	if false then
+		local v=vectorn(5*3)
+		v:setVec3(3*0, pos(0)*config.kinectScale+config.kinectPosOffset+vector3(10,0,0))
+		v:setVec3(3*1, pos(1)*config.kinectScale+config.kinectPosOffset+vector3(10,0,0))
+		v:setVec3(3*2, pos(2)*config.kinectScale+config.kinectPosOffset+vector3(10,0,0))
+		v:setVec3(3*3, pos(3)*config.kinectScale+config.kinectPosOffset+vector3(10,0,0))
+		v:setVec3(3*4, pos(4)*config.kinectScale+config.kinectPosOffset+vector3(10,0,0))
+		dbg.namedDraw("PointClouds", "featureKK", v, "redCircle", "Z")
+		v:setSize(4*3)
+		v:setVec3(3*0, pos(0)-self.deltas(0)+vector3(10,0,0))
+		v:setVec3(3*1, pos(0)-self.deltas(1)+vector3(10,0,0))
+		v:setVec3(3*2, pos(0)-self.deltas(2)+vector3(10,0,0))
+		v:setVec3(3*3, pos(0)-self.deltas(3)+vector3(10,0,0))
+		dbg.namedDraw("PointClouds", "featureK2", v, "blueCircle", "Z")
+	end
+	return state, data
+end
+
+function KinectTrackerFromDevice:drawSkeletonJoints()--ToDo: 실제 그려지는 ball은 19개. collar가 문제인듯.
+	for i=0, 23 do
+--		if not(i==9 or i==15 or i==19 or i==23) then
+		if (i==3 or i==7 or i==13 or i==18 or i==22) then
+			dbg.draw("Sphere", self:getJointPos(i) - self:getDistance(), "ball"..i, "red", 3)
+		end
+	end
+end
+
+function KinectTrackerFromDevice:getJointPos(idx)
+	local pos = vector3()
+	--pos.x = self.nuiListener:getJointRealCoords(idx,1)/10
+	--pos.y = self.nuiListener:getJointRealCoords(idx,1)/10 + 130
+	--pos.z = -self.nuiListener:getJointRealCoords(idx,2)/10 --지금 카메라각도에서 wrl과 맞추기 위해 -1x
+	pos.x = self.nuiListener:getJointRealCoords(idx,2)/10
+	--pos.y = self.nuiListener:getJointRealCoords(idx,1)/10+130
+	pos.y = self.nuiListener:getJointRealCoords(idx,1)/10
+	pos.z = self.nuiListener:getJointRealCoords(idx,0)/10
+	return pos
+end
+
+function KinectTrackerFromDevice:getDistance()
+	local userRoot = self:getJointPos(3)
+	local skinRoot = self.CON.conPos(0)
+	local distance = vector3()
+	distance = userRoot-skinRoot
+	return distance 
+end
+
+function KinectTrackerFromDevice:conposUpdateFromUser()
+	self.CON.conPos(0):assign(self:getJointPos(3)-self:getDistance())
+	self.CON.conPos(1):assign(self:getJointPos(22)-self:getDistance())
+	self.CON.conPos(2):assign(self:getJointPos(18)-self:getDistance())
+	self.CON.conPos(3):assign(self:getJointPos(13)-self:getDistance())
+	self.CON.conPos(4):assign(self:getJointPos(7)-self:getDistance())
 end
