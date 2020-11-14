@@ -3,7 +3,6 @@ require("module")
 require("moduleIK")
 require("common")
 require("RigidBodyWin/subRoutines/MultiConstraints")
-require("RigidBodyWin/subRoutines/Constraints")
 
 require("control/SDRE")
 package.projectPath='../Samples/classification/'
@@ -143,13 +142,6 @@ social_p={
 		mot="../Resource/jae/social_p2/social_p2.bvh",
 		motionFrameRate=30
 	},
-	{
-		{'Neck', 'Head', vector3(0,0,0), reversed=false},--0
-		{'LeftElbow', 'Leftwrist', vector3(0,0,0), reversed=false},--7
-		{'RightElbow', 'Rightwrist', vector3(0,0,0), reversed=false},--13
-		{'LeftKnee', 'LeftAnkle', vector3(0, 0, 0), reversed=false},--18
-		{'RightKnee', 'RightAnkle', vector3(0, 0, 0), reversed=false},--22
-	},
 
 	isMove=false,
 	doIK=false,
@@ -202,7 +194,6 @@ function lookAt(pose, offset)
 end
 
 function ctor()
-
 	mEventReceiver=EVR()
 
 	this:create("Button", "attach camera to 1", "attach camera to 1")
@@ -229,8 +220,6 @@ function ctor()
 	this:widget(0):sliderRange(-100, 100);
 	this:widget(0):sliderValue(0);
 
-	this:create("Button", "Start Nuitrack", "Start Nuitrack")
-	this:widget(0):buttonShortcut("s")
 	this:create("Check_Button", "Tracking", "Tracking")
 	this:widget(0):checkButtonValue(false)
 	this:widget(0):buttonShortcut("t")
@@ -253,8 +242,6 @@ function ctor()
 	mMotionDOFcontainer2=nil
 
 	for motNum=1,#motionGroup do
-
-		
 		input =motionGroup[motNum][1]
 		input2=motionGroup[motNum][2]
 
@@ -333,7 +320,7 @@ function ctor()
 		matfeature=matrixn(), -- source
 		matdata=matrixn(), -- target
 		--IDW=NonlinearFunctionIDW(mMetric, numIDW_samples, 2.0) -- regressor
-		IDW=KNearestInterpolationFast(numIDW_samples, 2.0) -- regressor
+		IDW=KNearestInterpolationFast(numIDW_samples, 2.0), -- regressor
 	}--regressor for Upperbody
 	cset2={
 		matfeature=matrixn(),
@@ -509,10 +496,8 @@ function ctor()
 	end
 
 	--mMotionDOFcontainer=MotionDOFcontainer(mLoader.dofInfo,input.mot)
-	
-	nuiListenerInit()
 	mSkin:applyMotionDOF(mMotionDOFcontainer.mot)
-	mSkin:setFrameTime(1/120)
+	mSkin:setFrameTime(1/30)
 	
 	RE.motionPanel():motionWin():detachSkin(mSkin)
 	RE.motionPanel():motionWin():addSkin(mSkin)
@@ -520,7 +505,7 @@ function ctor()
 	--woman
 	--mMotionDOFcontainer2=MotionDOFcontainer(mLoader2.dofInfo,input2.mot)
 	mSkinW:applyMotionDOF(mMotionDOFcontainer2.mot)
-	mSkinW:setFrameTime(1/120)
+	mSkinW:setFrameTime(1/30)
 
 	RE.motionPanel():motionWin():detachSkin(mSkinW)
 	RE.motionPanel():motionWin():addSkin(mSkinW)
@@ -615,142 +600,14 @@ function ctor()
 
 	if config.debugMode then
 	   --mKinectTracker=KinectTrackerFromFile("../../testdata/etri_src_kinect.txt", true )
-	   mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
+	   --mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
+	   mKinectTracker=KinectTrackerFromDevice()
 	else
 	   mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
 	end
---	mKinectModule=kinectModule(mKinectTracker)
+	--mKinectModule=kinectModule(mKinectTracker)
 	--mKinectTracker=KinectTracker()
 	mTimeline=Timeline("Timeline", 10000)
-end
-
-function nuiListenerInit()
-	nuiListener = NuiListener()
-	start = false
-	tracking = false
-
-	mPose = vectorn()
-	mLoader:getPoseDOF(mPose)
-	mSkin2:setPoseDOF(mPose)
-
-	mSolverInfo=createIKsolver(solver, mLoader, config[3])
-	mEffectors=mSolverInfo.effectors
-	numCon=mSolverInfo.numCon
-	mIK=mSolverInfo.solver
-
-	eePos=vector3N(numCon)
-	
-	mLoader:setPoseDOF(mPose)
-	local originalPos={}
-	for i=0, numCon-1 do
-		local opos=mEffectors(i).bone:getFrame():toGlobalPos(mEffectors(i).localpos)
-		opos=opos+vector3(0, 108, 0)
-		originalPos[i+1]=opos*config.skinScale--mskin:scale 과 비교
-	end
-	local hipPos = mLoader:bone(1):getFrame().translation + vector3(0, 108, 0)
-	table.insert(originalPos, hipPos*config.skinScale)
-
-	mCON=Constraints(unpack(originalPos))
-end
-
-function conPosUpdate()
-	local s=1.3
---	mCON.conPos(0):assign(getJointPos(0)*s)
---	mCON.conPos(1):assign(getJointPos(7)*s)
---	mCON.conPos(2):assign(getJointPos(13)*s)
---	mCON.conPos(3):assign(getJointPos(18)*s)
---	mCON.conPos(4):assign(getJointPos(22)*s)
---	mCON.conPos(5):assign(getJointPos(3)*s)
-
-	mCON.conPos(0):assign(getJointPos(0))
-	mCON.conPos(1):assign(getJointPos(7))
-	mCON.conPos(2):assign(getJointPos(13))
-	mCON.conPos(3):assign(getJointPos(18))
-	mCON.conPos(4):assign(getJointPos(22))
-	mCON.conPos(5):assign(getJointPos(3))
-	mCON:drawConstraints()
-end
-
-function drawSkeletonJoints()--ToDo: 실제 그려지는 ball은 19개. collar가 문제인듯.
-	if nuiListener:isTracking() then
-		for i=0, 23 do
-			if not(i==9 or i==15 or i==19 or i==23) then
-				dbg.draw("Sphere", getJointPos(i), "ball"..i, "red", 3)
-			end
-		end
-	end
-end
-
-function getJointPos(idx)
-	local pos = vector3()
-	pos.x = nuiListener:getJointRealCoords(idx,0)/10
-	pos.y = nuiListener:getJointRealCoords(idx,1)/10 + 130
-	pos.z = -nuiListener:getJointRealCoords(idx,2)/10 --지금 카메라각도에서 wrl과 맞추기 위해 -1x
-	return pos
-end
-
-function createIKsolver(solverType, loader, config)
-	local out={}
-	local mEffectors=MotionUtil.Effectors()
-	--local numCon=#config
-	local numCon=#motionGroup[1][3]
-	mEffectors:resize(numCon);
-	out.effectors=mEffectors
-	out.numCon=numCon
-
-	for i=0, numCon-1 do
-		--local conInfo=config[i+1]
-		local conInfo=motionGroup[1][3][i+1]
-		local kneeInfo=1
-		--local lknee=loader:getBoneByName(conInfo[kneeInfo])
-		mEffectors(i):init(loader:getBoneByName(conInfo[kneeInfo+1]), conInfo[kneeInfo+2])
-		--endeffector로 등록
-	end
-	g_con=MotionUtil.Constraints() -- std::vector<MotionUtil::RelativeConstraint>
-	out.solver=MotionUtil.createFullbodyIk_MotionDOF_MultiTarget_lbfgs(loader.dofInfo);
-	return out
-end
-
-function limbik()
-	conPosUpdate()
-	--mPose:assign(mMotionDOF:row(0));
-	--mLoader:setPoseDOF(mPose);
-	local hasCOM=0
-	local hasRot=0
-	local hasMM=0
-	local COM=mCON.conPos(5)/config.skinScale--안쓰이는듯
-	mIK:_changeNumEffectors(numCon)
-	--mIK:_changeNumConstraints(hasCOM+hasRot+hasMM)
-	-- local pos to global pos
-	for i=0,numCon-1 do
-		mIK:_setEffector(i, mEffectors(i).bone, mEffectors(i).localpos)
-
-		local originalPos=mCON.conPos(i)/config.skinScale
-		eePos(i):assign(originalPos);
-	end
-	
-	if hasCOM==1 then
-		mIK:_setCOMConstraint(0, COM)
-	end
-	if hasRot==1 then
-		local bone=mLoader:getBoneByName('LeftElbow')
-
-		mIK:_setOrientationConstraint(hasCOM, bone, quater(this:findWidget('arm ori y'):sliderValue(), vector3(0,1,0)));
-	end
-	if hasMM==1 then
-		mIK:_setMomentumConstraint(hasCOM+hasRot, vector3(0,0,0), vector3(0,0,0));
-	end
-	mIK:_effectorUpdated()
-
-	mIK:IKsolve(mPose, eePos)
-	mLoader:setPoseDOF(mPose);
-	mSkin2:setPoseDOF(mPose);
-end
-
-function getCurPoseVector()
-	local curPoseVector = vectorn()
-	mLoader:getPoseDOF(curPoseVector)
-	return curPoseVector
 end
 
 function initState(motdof, startFrame)
@@ -845,16 +702,13 @@ function onCallback(w, userData)
 		mEventReceiver:_attachCamera(curPos)
 	elseif w:id()=="set radd x" then
 	elseif w:id()=="set radd z" then
-	elseif w:id()=="Start Nuitrack" then
-		nuiListener:startNuitrack()
-		start = true
 	elseif w:id()=="Tracking" then
-		if start == true then
+		if mKinectTracker.start == true then
 			if w:checkButtonValue() then
-				tracking = true
+				mKinectTracker.tracking = true
 			else
 				dbg.eraseAllDrawn()
-				tracking = false
+				mKinectTracker.tracking = false
 			end
 		else
 			print("please start nuitrack. press Start Nuitrack Button")
@@ -944,14 +798,6 @@ function EVR:onFrameChanged(win, iframe)
 		else
 			util.msgBox("Error! frame range error")
 		end
-		if tracking then
-			drawSkeletonJoints()
-		end
---		if tracking then
---			limbik()
---			--mLoader:setPoseDOF(getCurPoseVector())
---			mLoader2:setPoseDOF(out)
---		end
 
 	--	mLoader:setPoseDOF(kinectdata)
 				--dbg.console()
@@ -1050,26 +896,20 @@ function EVR:onFrameChanged(win, iframe)
 		if iframe < mMotionDOFcontainer:numFrames() then
 			mSkin2:setPoseDOF(IKout)
 		end
---		if tracking then
---			mSkin2:setPoseDOF(IKout)
---		end
 		mSkinW2:setPoseDOF(IKout2)
 	end
 	EVR.setCamera(self, iframe)
+	mKinectTracker:drawSkeletonJoints()
 end
 
 function calOutput(mState)
-
 	local rotY=mState.pose.rotY
 	
 	local feature=extractFeatureVector(extract_pose(mMotionDOFcontainer,tempframe+startFrame),
 		extract_dpose(mMotionDOFcontainer,tempframe+startFrame))
---	local feature=extractFeatureVector(extract_pose(mMotionDOFcontainer,startFrame),--여기서 단순히 현재 포즈 정보만 넘겨주면 되나?
---		extract_dpose(mMotionDOFcontainer,startFrame))--그리고 그걸 여기서 디포즈?
-
  --	local feature = kinectdata
 	local feature2=extractFeatureVector(integratePose2(mState.pose,mState.dpose),mState.dpose)
-	local user_control=extractControlInput3(mMotionDOFcontainer,feature)--feature
+	local user_control=extractControlInput3(mMotionDOFcontainer,feature)
 		
 	mFeatureHistory:pushBack(feature)
 	mFeatureHistory2:pushBack(feature2)
@@ -1120,7 +960,6 @@ function calOutput(mState)
 end
 
 function calOutput2(mState)
-
 	-- mLowFeatureHistory2 and mUpFeatureHistory2 is second character's input feature for regression 
 	-- but because regressor only use user's input , this features is not used for now
 	local feature=extractFeatureVector(extract_pose(mMotionDOFcontainer,tempframe+startFrame),
@@ -1227,7 +1066,6 @@ function EVR:attachCamera(mot, offset)
 				self.trajectory:row(f):set(1,0)
 				self.trajectoryOri:row(f):setQuater(0, MotionDOF.rootTransformation(mMotionDOF:row(f)).rotation:rotationY())
 			end
-			print("filtering",s,e)
 			math.filter(self.trajectory:range(s,e,0, 3), 63)
 			math.filter(self.trajectoryOri:range(s,e,0, 4), 63)
 		end
@@ -1239,10 +1077,8 @@ function EVR:attachCamera(mot, offset)
 end
 
 function frameMove(fElapsedTime)
-	if tracking then
-		nuiListener:waitUpdate()
-		drawSkeletonJoints()
-		--limbik()
+	if mKinectTracker.tracking then
+		mKinectTracker.nuiListener:waitUpdate()
 	end
 end
 
