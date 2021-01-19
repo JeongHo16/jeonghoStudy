@@ -135,7 +135,7 @@ social_p={
 	{
 		skel="../Resource/jae/social_p1/social_p1.wrl",
 		mot="../Resource/jae/social_p1/social_p1.bvh",
-		motionFrameRate=30
+		motionFrameRate=30,
 	},
 	{
 		skel="../Resource/jae/social_p2/social_p2.wrl",
@@ -148,7 +148,6 @@ social_p={
 	MultiRegressor=false,
 	skinScale=1,
 }
-
 
 motionGroup={
 --	[1]=danceMotion
@@ -182,6 +181,8 @@ isMove=motionGroup[1].isMove
 MultiRegressor= motionGroup[1].MultiRegressor
 MainMotion = 1
 
+useGUI = true
+
 function lookAt(pose, offset)
 	local tf=MotionDOF.rootTransformation(pose)
 	local vpos=vector3(94.777964, 126.724047, 352.393547)
@@ -194,6 +195,7 @@ function lookAt(pose, offset)
 end
 
 function ctor()
+
 	mEventReceiver=EVR()
 
 	this:create("Button", "attach camera to 1", "attach camera to 1")
@@ -220,10 +222,6 @@ function ctor()
 	this:widget(0):sliderRange(-100, 100);
 	this:widget(0):sliderValue(0);
 
-	this:create("Check_Button", "Tracking", "Tracking")
-	this:widget(0):checkButtonValue(false)
-	this:widget(0):buttonShortcut("t")
-
 	this:updateLayout()
 	this:redraw()
 
@@ -242,6 +240,8 @@ function ctor()
 	mMotionDOFcontainer2=nil
 
 	for motNum=1,#motionGroup do
+
+		
 		input =motionGroup[motNum][1]
 		input2=motionGroup[motNum][2]
 
@@ -320,7 +320,7 @@ function ctor()
 		matfeature=matrixn(), -- source
 		matdata=matrixn(), -- target
 		--IDW=NonlinearFunctionIDW(mMetric, numIDW_samples, 2.0) -- regressor
-		IDW=KNearestInterpolationFast(numIDW_samples, 2.0), -- regressor
+		IDW=KNearestInterpolationFast(numIDW_samples, 2.0) -- regressor
 	}--regressor for Upperbody
 	cset2={
 		matfeature=matrixn(),
@@ -496,19 +496,19 @@ function ctor()
 	end
 
 	--mMotionDOFcontainer=MotionDOFcontainer(mLoader.dofInfo,input.mot)
-	mSkin:applyMotionDOF(mMotionDOFcontainer.mot)
-	mSkin:setFrameTime(1/30)
-	
-	RE.motionPanel():motionWin():detachSkin(mSkin)
-	RE.motionPanel():motionWin():addSkin(mSkin)
-
-	--woman
-	--mMotionDOFcontainer2=MotionDOFcontainer(mLoader2.dofInfo,input2.mot)
-	mSkinW:applyMotionDOF(mMotionDOFcontainer2.mot)
-	mSkinW:setFrameTime(1/30)
-
-	RE.motionPanel():motionWin():detachSkin(mSkinW)
-	RE.motionPanel():motionWin():addSkin(mSkinW)
+--	mSkin:applyMotionDOF(mMotionDOFcontainer.mot)
+--	mSkin:setFrameTime(1/30)
+--	
+--	RE.motionPanel():motionWin():detachSkin(mSkin)
+--	RE.motionPanel():motionWin():addSkin(mSkin)
+--
+--	--woman
+--	--mMotionDOFcontainer2=MotionDOFcontainer(mLoader2.dofInfo,input2.mot)
+--	mSkinW:applyMotionDOF(mMotionDOFcontainer2.mot)
+--	mSkinW:setFrameTime(1/30)
+--
+--	RE.motionPanel():motionWin():detachSkin(mSkinW)
+--	RE.motionPanel():motionWin():addSkin(mSkinW)
 
 	mSkin2:setPoseDOF(mMotionDOFcontainer.mot:row(3))
 	mSkinW2:setPoseDOF(mMotionDOFcontainer2.mot:row(3))
@@ -598,14 +598,19 @@ function ctor()
 		mFeatureHistory2=matfeatureall2:sub(fpos+startFrame-featureHistorySize, fpos+startFrame,0,0):copy()
 	end
 
-	if config.debugMode then
-	   --mKinectTracker=KinectTrackerFromFile("../../testdata/etri_src_kinect.txt", true )
-	   --mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
-	   mKinectTracker=KinectTrackerFromDevice()
-	else
-	   mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
+	if useGUI then
+		mKinectTracker = KinectTrackerFromGUI()
 	end
-	--mKinectModule=kinectModule(mKinectTracker)
+
+	mKinectModule = kinectModule(mKinectTracker)
+
+--	if config.debugMode then
+--	   --mKinectTracker=KinectTrackerFromFile("../../testdata/etri_src_kinect.txt", true )
+--	   mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
+--	else
+--	   mKinectTracker=KinectTrackerFromFile("../kinectdata/"..kinect_datafile)
+--	end
+--	mKinectModule=kinectModule(mKinectTracker)
 	--mKinectTracker=KinectTracker()
 	mTimeline=Timeline("Timeline", 10000)
 end
@@ -702,18 +707,6 @@ function onCallback(w, userData)
 		mEventReceiver:_attachCamera(curPos)
 	elseif w:id()=="set radd x" then
 	elseif w:id()=="set radd z" then
-	elseif w:id()=="Tracking" then
-		if mKinectTracker.start == true then
-			if w:checkButtonValue() then
-				mKinectTracker.tracking = true
-			else
-				dbg.eraseAllDrawn()
-				mKinectTracker.tracking = false
-			end
-		else
-			print("please start nuitrack. press Start Nuitrack Button")
-			w:checkButtonValue(false)
-		end
 	end
 end
 
@@ -899,14 +892,21 @@ function EVR:onFrameChanged(win, iframe)
 		mSkinW2:setPoseDOF(IKout2)
 	end
 	EVR.setCamera(self, iframe)
-	mKinectTracker:drawSkeletonJoints()
+end
+
+function handleRendererEvent(ev, button, x,y)
+	if useGUI and mKinectTracker.CON then
+		return mKinectTracker.CON:handleRendererEvent(ev, button, x,y)
+	end
+	return 0
 end
 
 function calOutput(mState)
+
 	local rotY=mState.pose.rotY
 	
 	local feature=extractFeatureVector(extract_pose(mMotionDOFcontainer,tempframe+startFrame),
-		extract_dpose(mMotionDOFcontainer,tempframe+startFrame))
+		extract_dpose(mMotionDOFcontainer,tempframe+startFrame)) -- 여기에 키넥트 정보 넣어보자. 
  --	local feature = kinectdata
 	local feature2=extractFeatureVector(integratePose2(mState.pose,mState.dpose),mState.dpose)
 	local user_control=extractControlInput3(mMotionDOFcontainer,feature)
@@ -960,6 +960,7 @@ function calOutput(mState)
 end
 
 function calOutput2(mState)
+
 	-- mLowFeatureHistory2 and mUpFeatureHistory2 is second character's input feature for regression 
 	-- but because regressor only use user's input , this features is not used for now
 	local feature=extractFeatureVector(extract_pose(mMotionDOFcontainer,tempframe+startFrame),
@@ -1066,6 +1067,7 @@ function EVR:attachCamera(mot, offset)
 				self.trajectory:row(f):set(1,0)
 				self.trajectoryOri:row(f):setQuater(0, MotionDOF.rootTransformation(mMotionDOF:row(f)).rotation:rotationY())
 			end
+			print("filtering",s,e)
 			math.filter(self.trajectory:range(s,e,0, 3), 63)
 			math.filter(self.trajectoryOri:range(s,e,0, 4), 63)
 		end
@@ -1077,9 +1079,6 @@ function EVR:attachCamera(mot, offset)
 end
 
 function frameMove(fElapsedTime)
-	if mKinectTracker.tracking then
-		mKinectTracker.nuiListener:waitUpdate()
-	end
 end
 
 function detachSkins()
