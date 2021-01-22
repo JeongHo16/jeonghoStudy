@@ -66,9 +66,9 @@ function ctor()
 	mLoader=mMot.loader
 	mLoader:printHierarchy()
 
-	for i=1, mLoader:numBone()-1 do
-		dbg.draw('Sphere', mLoader:bone(i):getFrame().translation*config.skinScale, i, "red", 5)
-	end
+--	for i=1, mLoader:numBone()-1 do
+--		dbg.draw('Sphere', mLoader:bone(i):getFrame().translation*config.skinScale, i, "red", 5)
+--	end
 
 	--local max_iter=mLoader:numBone()
 	for i=1, mLoader:numBone()-1 do
@@ -101,7 +101,6 @@ function ctor()
 	mSkin:setPoseDOF(mPose);
 
 
-	dbg.console()
 	mSolverInfo=createIKsolver(solver, mLoader, config[3])
 	mEffectors=mSolverInfo.effectors
 	numCon=mSolverInfo.numCon
