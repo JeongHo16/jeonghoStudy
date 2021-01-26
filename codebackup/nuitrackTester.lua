@@ -65,10 +65,10 @@ function onCallback(w, userData)
 		print(RE.viewpoint().vpos)
 		print(RE.viewpoint().vat)
 	elseif w:id()=="Load Stick_Human" then
-		mLoader=MainLib.VRMLloader ("../Resource/jae/social_p1/social_p1.wrl")
+		mLoader=MainLib.VRMLloader ("../../taesooLib/Resource/motion/locomotion_hyunwoo/hyunwoo_lowdof_T.wrl")
 		mSkin = RE.createVRMLskin(mLoader, false)
-		mSkin:scale(1,1,1)
-		mSkin:setTranslation(0,108,0)
+		mSkin:scale(100,100,100)
+		mSkin:setTranslation(0,0,0)
 		mLoader:printHierarchy()
 --	elseif w:id()=="drawAxes" then
 --		if w:checkButtonValue() then
