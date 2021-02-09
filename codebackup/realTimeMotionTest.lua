@@ -103,7 +103,6 @@ end
 function frameMove(fElapsedTime)
 	if tracking then
 		mNuiListener:waitUpdate()
-		--dbg.namedDraw("Axes", transf(getJointRotByName("JOINT_WAIST"), vector3(0,0,100)), "axes")
 		--drawUserJoints()
 		--drawLoaderJoints()
 		getUserPose()
@@ -123,31 +122,14 @@ function onCallback(w, userData)
 		end
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
-			local mat = matrix4()
-			mat:setValue(
-			0,-1,0,0,
-			1,0,0,0,
-			0,0,1,0,
-			0,0,0,1)
-			local quat = quater()
-			--local quat2 = quat:inverse()
-			quat:setRotation(mat)
-			print(quat)
-			dbg.namedDraw("Axes", transf(quat, vector3(0,0,100)), "axes")
-			--dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
+			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
 		else
 			dbg.erase("Axes", "axes")
 		end
 	end
 end
 
-function getUserPose()
-	local pose = Pose()
-	pose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
-	pose:identity()	
-	local rootTransf = getUserRootTransf()
-	pose:setRootTransformation(rootTransf)
-
+function setRotJoints()
 	local rots = quaterN() 
 	rots:pushBack(getJointRotByName("JOINT_WAIST")) 
 	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_TORSO")))
@@ -173,7 +155,17 @@ function getUserPose()
 --	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_HIP"),getJointRotByName("JOINT_RIGHT_KNEE")))
 --	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_KNEE"),getJointRotByName("JOINT_RIGHT_ANKLE")))
 
-	pose.rotations:assign(rots)
+	return rots
+end
+
+function getUserPose()
+	local pose = Pose()
+	pose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
+	pose:identity()	
+
+	pose:setRootTransformation(getUserRootTransf())
+	pose.rotations:assign(setRotJoints())
+
 	userPose = pose	
 	mSkin:_setPose(userPose, mLoader)
 end
@@ -192,12 +184,10 @@ end
 function drawUserJoints()
 	for i=0, 23 do
 		if not(i==9 or i==15 or i==19 or i==23) then 
-		--if (i==3 or i==7 or i==13 or i==18 or i==22) then 
 			--dbg.namedDraw("Sphere", getJointPos(i)+vector3(0,108,0), "ball"..i, "red", 3)
 			--dbg.namedDraw("Sphere", getJointPosByName(userJointNames[i+1])+vector3(0,108,0), userJointNames[i+1], "red", 3)
-			dbg.draw("Axes", transf(getJointRot(i), getJointPos(i)+vector3(0,108,0)), "axesll"..i)
-			--dbg.namedDraw("Sphere", getJointPos(i) - getDistance(), i, "red", 3)
 			--dbg.draw("Sphere", getJointPos(i)+vector3(0,108,0), "ball2l"..i, "blue", 3)
+			dbg.draw("Axes", transf(getJointRot(i), getJointPos(i)+vector3(0,108,0)), "axesll"..i)
 		end
 	end
 end
@@ -218,6 +208,14 @@ function getJointPosByName(name)
 	return pos
 end
 
+function getJointPos(idx)
+	local pos = vector3()
+	pos.x = mNuiListener:getJointPos(idx,0)/10
+	pos.y = mNuiListener:getJointPos(idx,1)/10
+	pos.z = -mNuiListener:getJointPos(idx,2)/10
+	return pos
+end
+
 function getJointRotByName(name)
 	local mat = matrix4()
 	local rot = vectorn(9)
@@ -226,23 +224,11 @@ function getJointRotByName(name)
 		rot:set(i, mNuiListener:getJointRotByName(name,i))
 	end
 
-	mat:setValue(
-	rot(0),rot(3),rot(6),0,
-	rot(1),rot(4),rot(7),0,
-	rot(2),rot(5),rot(8),0,
-	0,0,0,1)
+	mat:setValue(rot(0),rot(3),rot(6),0,rot(1),rot(4),rot(7),0,rot(2),rot(5),rot(8),0,0,0,0,1)
 
 	quat:setRotation(mat)
 	quat:setValue(quat.w, quat.x, quat.y, -quat.z)
 	return quat 
-end
-
-function getJointPos(idx)
-	local pos = vector3()
-	pos.x = mNuiListener:getJointPos(idx,0)/10
-	pos.y = mNuiListener:getJointPos(idx,1)/10
-	pos.z = -mNuiListener:getJointPos(idx,2)/10
-	return pos
 end
 
 function getJointRot(idx)
@@ -252,11 +238,7 @@ function getJointRot(idx)
 	for i=0, 8 do
 		rot:set(i, mNuiListener:getJointRot(idx,i))
 	end
-	mat:setValue(
-	rot(0),rot(3),rot(6),0,
-	rot(1),rot(4),rot(7),0,
-	rot(2),rot(5),rot(8),0,
-	0,0,0,1)
+	mat:setValue(rot(0),rot(3),rot(6),0,rot(1),rot(4),rot(7),0,rot(2),rot(5),rot(8),0,0,0,0,1)
 
 	quat:setRotation(mat)
 	quat:setValue(quat.w, quat.x, quat.y, -quat.z)
