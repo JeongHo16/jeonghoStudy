@@ -43,6 +43,8 @@ useDevice = true
 --useDevice = false
 
 tracking = false
+recording = false
+playingMotion = false
 
 function ctor()
 	--mEventReceiver=EVR()
@@ -51,6 +53,11 @@ function ctor()
 	this:create("Check_Button", "Tracking", "Tracking")
 	this:widget(0):checkButtonValue(false)
 	this:widget(0):buttonShortcut("t")
+	this:create("Button", "Start Record", "Start Record")
+	this:create("Button", "Stop Record", "Stop Record")
+	this:create("Input", "Motion Title", "")
+	this:create("Button", "Save Motion", "Save Motion")
+	this:create("Button", "Play Previous Motion", "Play Previous Motion")
 	this:create("Check_Button", "drawAxes", "drawAxes")
 	this:widget(0):checkButtonValue(false)
 	this:widget(0):buttonShortcut("d")
@@ -103,9 +110,35 @@ end
 function frameMove(fElapsedTime)
 	if tracking then
 		mNuiListener:waitUpdate()
-		--drawUserJoints()
+		drawUserJoints()
 		--drawLoaderJoints()
-		getUserPose()
+		--getUserPose()
+		if recording then
+			mNuiListener:createRecordedJson()
+		end
+	end
+
+--	if playingMotion then
+--
+--	end
+end
+
+curFrame = 0
+function playMotionFile()
+	local tempVec = vector3()
+	local frameNum = mNuiListener:getMotionFrameSize()
+	for i=curFrame, frameNum do
+	--local c = 0
+		for j=0, 23 do
+			if not(j==9 or j==15 or j==19 or j==23) then
+				tempVec.x = mNuiListener:getMotionFileInfo(i, "pos", j, 0)
+				tempVec.y = mNuiListener:getMotionFileInfo(i, "pos", j, 1)
+				tempVec.z = mNuiListener:getMotionFileInfo(i, "pos", j, 2)
+				--c = c + 10
+				--print(c)
+				dbg.namedDraw("Sphere", tempVec+vector3(0,108,0), "b"..j, "red", 3)
+			end
+		end
 	end
 end
 
@@ -119,7 +152,26 @@ function onCallback(w, userData)
 		else
 			dbg.eraseAllDrawn()
 			tracking = false
+		end 
+	elseif w:id()=="Start Record" then
+		if tracking then
+			print("Start Recording")
+			recording = true
 		end
+	elseif w:id()=="Stop Record" then
+		if recording == true then
+			print("Stop Recording")
+			recording = false
+		end
+	elseif w:id()=="Save Motion" then
+		print("Saved MotionData")
+		local title = this:findWidget("Motion Title"):inputValue()
+		mNuiListener:saveJsonStringToFile(title)
+	elseif w:id()=="Play Previous Motion" then
+		print("Start play recorded motion")
+		playingMotion = true
+		mNuiListener:loadFileToJson("asdf") -- Todo: menu에서 골라서 로드하기 
+		playMotionFile()
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
@@ -129,6 +181,7 @@ function onCallback(w, userData)
 	end
 end
 
+--[[
 function setRotJoints()
 	local rots = quaterN() 
 	rots:pushBack(getJointRotByName("JOINT_WAIST")) 
@@ -147,16 +200,17 @@ function setRotJoints()
 	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_SHOULDER"),getJointRotByName("JOINT_RIGHT_ELBOW")))
 	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_ELBOW"),getJointRotByName("JOINT_RIGHT_WRIST")))
 
---	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_LEFT_HIP")))
---	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_HIP"),getJointRotByName("JOINT_LEFT_KNEE")))
---	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_KNEE"),getJointRotByName("JOINT_LEFT_ANKLE")))
---
---	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_RIGHT_HIP")))
---	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_HIP"),getJointRotByName("JOINT_RIGHT_KNEE")))
---	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_KNEE"),getJointRotByName("JOINT_RIGHT_ANKLE")))
+	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_LEFT_HIP")))
+	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_HIP"),getJointRotByName("JOINT_LEFT_KNEE")))
+	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_KNEE"),getJointRotByName("JOINT_LEFT_ANKLE")))
+
+	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_RIGHT_HIP")))
+	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_HIP"),getJointRotByName("JOINT_RIGHT_KNEE")))
+	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_KNEE"),getJointRotByName("JOINT_RIGHT_ANKLE")))
 
 	return rots
 end
+]]
 
 function getUserPose()
 	local pose = Pose()
@@ -183,19 +237,21 @@ end
 
 function drawUserJoints()
 	for i=0, 23 do
-		if not(i==9 or i==15 or i==19 or i==23) then 
+--		if i==16 or i==20 or i==10 then -- 이거 센서에서  못잡는 중
+--			print(getJointPos(i))
+--		end
+		--if not(i==9 or i==15 or i==19 or i==23) then 
 			--dbg.namedDraw("Sphere", getJointPos(i)+vector3(0,108,0), "ball"..i, "red", 3)
 			--dbg.namedDraw("Sphere", getJointPosByName(userJointNames[i+1])+vector3(0,108,0), userJointNames[i+1], "red", 3)
 			--dbg.draw("Sphere", getJointPos(i)+vector3(0,108,0), "ball2l"..i, "blue", 3)
-			dbg.draw("Axes", transf(getJointRot(i), getJointPos(i)+vector3(0,108,0)), "axesll"..i)
-		end
+			--dbg.draw("Axes", transf(getJointRot(i), getJointPos(i)+vector3(0,108,0)), "axesll"..i)
+		--end
 	end
 end
 
 function drawLoaderJoints()
 	for i=1, mLoader:numBone()-1 do
 		dbg.namedDraw("Axes", mLoader:bone(i):getFrame(), "axes"..i)
-		--dbg.namedDraw("Axes", mLoader:bone(i):getFrame()*transf(quater(1,0,0,0), vector3(0,108,0)), "axes"..i)
 		--dbg.namedDraw("Sphere", mLoader:bone(i):getFrame().translation, mLoader:bone(i):name(), "red", 3)
 	end
 end
