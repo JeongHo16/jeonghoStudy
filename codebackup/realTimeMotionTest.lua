@@ -1,4 +1,4 @@
-require("config")
+require("config") 
 require("module")
 require("common")
 require("RigidBodyWin/subRoutines/Constraints")
@@ -12,31 +12,31 @@ config_jeongho = {
 
 config = config_jeongho
 
-userJointNames = {
-	"JOINT_WAIST",			-- 3
-	"JOINT_TORSO",			-- 2
-	"JOINT_NECK",			-- 1
-	"JOINT_HEAD",			-- 0
+jointsMap = {
+	["JOINT_HEAD"]=1,
+	["JOINT_NECK"]=2,
+	["JOINT_TORSO"]=3,
+	["JOINT_WAIST"]=4,			
 
-	"JOINT_LEFT_COLLAR",	-- 4
-	"JOINT_LEFT_SHOULDER",	-- 5
-	"JOINT_LEFT_ELBOW",		-- 6
-	"JOINT_LEFT_WRIST",		-- 7
-	"JOINT_LEFT_HAND",		-- 8
+	["JOINT_LEFT_COLLAR"]=5,
+	["JOINT_LEFT_SHOULDER"]=6,
+	["JOINT_LEFT_ELBOW"]=7,
+	["JOINT_LEFT_WRIST"]=8,		
+	["JOINT_LEFT_HAND"]=9,		
 
-	"JOINT_RIGHT_COLLAR",	-- 10
-	"JOINT_RIGHT_SHOULDER",	-- 11
-	"JOINT_RIGHT_ELBOW",	-- 12
-	"JOINT_RIGHT_WRIST",	-- 13
-	"JOINT_RIGHT_HAND",		-- 14
+	["JOINT_RIGHT_COLLAR"]=11,
+	["JOINT_RIGHT_SHOULDER"]=12,
+	["JOINT_RIGHT_ELBOW"]=13,
+	["JOINT_RIGHT_WRIST"]=14,	
+	["JOINT_RIGHT_HAND"]=15,	
 
-	"JOINT_LEFT_HIP",		-- 16
-	"JOINT_LEFT_KNEE",		-- 17
-	"JOINT_LEFT_ANKLE",		-- 18
+	["JOINT_LEFT_HIP"]=17,	
+	["JOINT_LEFT_KNEE"]=18,		
+	["JOINT_LEFT_ANKLE"]=19,		
 
-	"JOINT_RIGHT_HIP",		-- 20
-	"JOINT_RIGHT_KNEE",		-- 21
-	"JOINT_RIGHT_ANKLE",	-- 22
+	["JOINT_RIGHT_HIP"]=21,	
+	["JOINT_RIGHT_KNEE"]=22,		
+	["JOINT_RIGHT_ANKLE"]=23	
 }
 
 useDevice = true
@@ -45,9 +45,12 @@ useDevice = true
 tracking = false
 recording = false
 playingMotion = false
+motionSize = 0
 
 function ctor()
-	--mEventReceiver=EVR()
+	mEventReceiver=EVR()
+
+	fileList = scandir("jsonDatas")
 
 	this:create("Button", "Check Viewpoint", "Check Viewpoint")
 	this:create("Check_Button", "Tracking", "Tracking")
@@ -57,10 +60,16 @@ function ctor()
 	this:create("Button", "Stop Record", "Stop Record")
 	this:create("Input", "Motion Title", "")
 	this:create("Button", "Save Motion", "Save Motion")
-	this:create("Button", "Play Previous Motion", "Play Previous Motion")
-	this:create("Check_Button", "drawAxes", "drawAxes")
-	this:widget(0):checkButtonValue(false)
-	this:widget(0):buttonShortcut("d")
+	this:create("Choice", "load Motion file")
+	this:widget(0):menuSize(#fileList)
+	for i=1, #fileList do
+		this:widget(0):menuItem(i-1, fileList[i])
+	end
+	this:widget(0):menuValue(0)
+	this:create("Button", "Play Motion File", "Play Motion File")
+--	this:create("Check_Button", "drawAxes", "drawAxes")
+--	this:widget(0):checkButtonValue(false)
+--	this:widget(0):buttonShortcut("d")
 	this:updateLayout()
 
 	RE.viewpoint().vpos:set(368, 210, 26)
@@ -69,75 +78,44 @@ function ctor()
 
 	mLoader=MainLib.VRMLloader(config[1])
 	mLoader:printHierarchy()
-
+	
+	mSkin = RE.createVRMLskin(mLoader, false)
+	local s=config.skinScale
+	mSkin:scale(s,s,s)
+--[[
 	mMotionDOFcontainer = MotionDOFcontainer(mLoader.dofInfo, config[2])
 	mMotionDOF = mMotionDOFcontainer.mot
 	 
 	for i=0, mMotionDOF:rows()-1 do
 		mMotionDOF:matView():set(i, 1, mMotionDOF:matView()(i,1)*100)
 	end
-	
-	mSkin = RE.createVRMLskin(mLoader, false)
-	local s=config.skinScale
-	mSkin:scale(s,s,s)
 
 	mSkin:applyMotionDOF(mMotionDOF)
 	mSkin:setFrameTime(1/120)
 
 	RE.motionPanel():motionWin():detachSkin(mSkin)
 	RE.motionPanel():motionWin():addSkin(mSkin)
-
---	mPose = vectorn()
---	mPose:assign(mMotionDOF:row(0))
---	mSkin:setPoseDOF(mPose)
+]]
 	userPose = Pose()
 	userPose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
 	userPose:identity()	
 	mSkin:_setPose(userPose, mLoader)
 
---	mPose = Pose()
---	mLoader:getPose(mPose)
---	mSkin:_setPose(mPose, mLoader)
-
+	mNuiListener = NuiListener()
 	if useDevice then
-		mNuiListener = NuiListener()
 		mNuiListener:startNuitrack()
 	end
 
-	--dbg.console()
+	mTimeline=Timeline("Timeline", 10000)
 end
 
 function frameMove(fElapsedTime)
 	if tracking then
 		mNuiListener:waitUpdate()
-		drawUserJoints()
-		--drawLoaderJoints()
+		--drawUserJoints()
 		--getUserPose()
 		if recording then
 			mNuiListener:createRecordedJson()
-		end
-	end
-
---	if playingMotion then
---
---	end
-end
-
-curFrame = 0
-function playMotionFile()
-	local tempVec = vector3()
-	local frameNum = mNuiListener:getMotionFrameSize()
-	for i=curFrame, frameNum do
-	--local c = 0
-		for j=0, 23 do
-			if not(j==9 or j==15 or j==19 or j==23) then
-				tempVec.x = mNuiListener:getMotionFileInfo(i, "pos", j, 0)
-				tempVec.y = mNuiListener:getMotionFileInfo(i, "pos", j, 1)
-				tempVec.z = mNuiListener:getMotionFileInfo(i, "pos", j, 2)
-				--c = c + 10
-				--print(c)
-				dbg.namedDraw("Sphere", tempVec+vector3(0,108,0), "b"..j, "red", 3)
-			end
 		end
 	end
 end
@@ -164,147 +142,172 @@ function onCallback(w, userData)
 			recording = false
 		end
 	elseif w:id()=="Save Motion" then
-		print("Saved MotionData")
 		local title = this:findWidget("Motion Title"):inputValue()
-		mNuiListener:saveJsonStringToFile(title)
-	elseif w:id()=="Play Previous Motion" then
-		print("Start play recorded motion")
-		playingMotion = true
-		mNuiListener:loadFileToJson("asdf") -- Todo: menu에서 골라서 로드하기 
-		playMotionFile()
+		if title ~= "" then
+			print("Saved MotionData")
+			mNuiListener:saveJsonStringToFile(title)
+		end
+	elseif w:id()=="Play Motion File" then
+		local title = string.sub(this:findWidget("load Motion file"):menuText(),0,-6)
+		if title ~= "" and not playingMotion then
+			print("Start play recorded motion")
+			playingMotion = true
+			mNuiListener:loadFileToJson(title)
+			motionSize = mNuiListener:getMotionFrameSize()
+		end
+--[[
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
 		else
 			dbg.erase("Axes", "axes")
 		end
+]]
 	end
 end
 
---[[
-function setRotJoints()
-	local rots = quaterN() 
-	rots:pushBack(getJointRotByName("JOINT_WAIST")) 
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_TORSO")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_TORSO"),getJointRotByName("JOINT_LEFT_COLLAR")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_COLLAR"),getJointRotByName("JOINT_NECK")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_NECK"),getJointRotByName("JOINT_HEAD")))
-
-	rots:pushBack(quater(1,0,0,0))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_COLLAR"),getJointRotByName("JOINT_LEFT_SHOULDER")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_SHOULDER"),getJointRotByName("JOINT_LEFT_ELBOW")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_ELBOW"),getJointRotByName("JOINT_LEFT_WRIST")))
-
-	rots:pushBack(quater(1,0,0,0))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_COLLAR"),getJointRotByName("JOINT_RIGHT_SHOULDER")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_SHOULDER"),getJointRotByName("JOINT_RIGHT_ELBOW")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_ELBOW"),getJointRotByName("JOINT_RIGHT_WRIST")))
-
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_LEFT_HIP")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_HIP"),getJointRotByName("JOINT_LEFT_KNEE")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_LEFT_KNEE"),getJointRotByName("JOINT_LEFT_ANKLE")))
-
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_WAIST"),getJointRotByName("JOINT_RIGHT_HIP")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_HIP"),getJointRotByName("JOINT_RIGHT_KNEE")))
-	rots:pushBack(getUserJointLocalRot(getJointRotByName("JOINT_RIGHT_KNEE"),getJointRotByName("JOINT_RIGHT_ANKLE")))
-
-	return rots
+function scandir(directory)
+    local i, t, popen = 0, {}, io.popen
+    local pfile = popen('ls "'..directory..'"')
+    for filename in pfile:lines() do
+        i = i + 1
+        t[i] = filename
+    end
+    pfile:close()
+    return t
 end
-]]
 
-function getUserPose()
+function getUserPose(fIdx)
 	local pose = Pose()
 	pose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
 	pose:identity()	
 
-	pose:setRootTransformation(getUserRootTransf())
-	pose.rotations:assign(setRotJoints())
+	pose:setRootTransformation(getUserRootTransf(fIdx))
+	pose.rotations:assign(setRotJoints(fIdx))
 
 	userPose = pose	
 	mSkin:_setPose(userPose, mLoader)
 end
 
-function getUserRootTransf()--todo: y값 조정
-	local rootRot = getJointRotByName("JOINT_WAIST")
-	local rootPos = getJointPosByName("JOINT_WAIST")
+function getUserRootTransf(fIdx) --TODO : y값 조정
+	local rootRot = getJointRot("JOINT_WAIST", fIdx)
+	local rootPos = getJointPos("JOINT_WAIST", fIdx)
 	return transf(rootRot, rootPos+vector3(0,128,0))
 end
 
-function getUserJointLocalRot(preRot, curRot)
+function setRotJoints(fIdx)
+	local rots = quaterN() 
+	rots:pushBack(getJointRot("JOINT_WAIST",fIdx)) 
+	rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_TORSO",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_TORSO","JOINT_LEFT_COLLAR",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_COLLAR","JOINT_NECK",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_NECK","JOINT_HEAD",fIdx))
+
+	rots:pushBack(quater(1,0,0,0)) -- LEFT_COLLAR
+	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_COLLAR","JOINT_LEFT_SHOULDER",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_SHOULDER","JOINT_LEFT_ELBOW",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_ELBOW","JOINT_LEFT_WRIST",fIdx))
+
+	rots:pushBack(quater(1,0,0,0)) -- RIGHT_COLLAR
+	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_COLLAR","JOINT_RIGHT_SHOULDER",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_SHOULDER","JOINT_RIGHT_ELBOW",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_ELBOW","JOINT_RIGHT_WRIST",fIdx))
+
+	--rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_LEFT_HIP",fIdx))
+	--rots:pushBack(getUserJointLocalRot("JOINT_LEFT_HIP","JOINT_LEFT_KNEE",fIdx))
+	--rots:pushBack(getUserJointLocalRot("JOINT_LEFT_KNEE","JOINT_LEFT_ANKLE",fIdx))
+	rots:pushBack(quater(1,0,0,0))
+	rots:pushBack(quater(1,0,0,0))
+	rots:pushBack(quater(1,0,0,0)) -- LEFT_ANKLE
+	rots:pushBack(quater(1,0,0,0)) -- LEFT_TOE
+
+	--rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_RIGHT_HIP",fIdx))
+	--rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_HIP","JOINT_RIGHT_KNEE",fIdx))
+	--rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_KNEE","JOINT_RIGHT_ANKLE",fIdx))
+	rots:pushBack(quater(1,0,0,0))
+	rots:pushBack(quater(1,0,0,0))
+	rots:pushBack(quater(1,0,0,0)) -- RIGHT_ANKLE
+	rots:pushBack(quater(1,0,0,0)) -- RIGHT_TOE
+
+	return rots
+end
+
+function getUserJointLocalRot(preRot, curRot, fIdx)
+	preRot = getJointRot(preRot, fIdx)
+	curRot = getJointRot(curRot, fIdx)
 	curRot:toLocal(preRot, curRot)
 	return curRot
 end
 
 function drawUserJoints()
-	for i=0, 23 do
---		if i==16 or i==20 or i==10 then -- 이거 센서에서  못잡는 중
---			print(getJointPos(i))
---		end
-		--if not(i==9 or i==15 or i==19 or i==23) then 
-			--dbg.namedDraw("Sphere", getJointPos(i)+vector3(0,108,0), "ball"..i, "red", 3)
-			--dbg.namedDraw("Sphere", getJointPosByName(userJointNames[i+1])+vector3(0,108,0), userJointNames[i+1], "red", 3)
-			--dbg.draw("Sphere", getJointPos(i)+vector3(0,108,0), "ball2l"..i, "blue", 3)
-			--dbg.draw("Axes", transf(getJointRot(i), getJointPos(i)+vector3(0,108,0)), "axesll"..i)
-		--end
+for k,v in pairs(jointsMap) do
+	if not(k==10 or k==16 or k==20 or k==24) then 
+		dbg.namedDraw("Sphere", getJointPos(v)+vector3(0,108,0), v, "red", 3)
+		--dbg.draw("Axes", transf(getJointRot(k), getJointPos(k)+vector3(0,108,0)), "a"..v)
 	end
 end
-
-function drawLoaderJoints()
-	for i=1, mLoader:numBone()-1 do
-		dbg.namedDraw("Axes", mLoader:bone(i):getFrame(), "axes"..i)
-		--dbg.namedDraw("Sphere", mLoader:bone(i):getFrame().translation, mLoader:bone(i):name(), "red", 3)
-	end
 end
 
-function getJointPosByName(name)
+function getJointPos(jIdx, fIdx)
+	if type(jIdx) == "string" then
+		jIdx = jointsMap[jIdx]
+	end
+	
 	local pos = vector3()
-	pos.x = mNuiListener:getJointPosByName(name,0)/10
-	pos.y = mNuiListener:getJointPosByName(name,1)/10
-	pos.z = -mNuiListener:getJointPosByName(name,2)/10
+	if fIdx == nil then
+		pos.x = mNuiListener:getJointPos(jIdx,0)/10
+		pos.y = mNuiListener:getJointPos(jIdx,1)/10
+		pos.z = -mNuiListener:getJointPos(jIdx,2)/10
+	else
+		pos.x = mNuiListener:getMotionFileInfo(fIdx,"pos",jIdx,0)/10
+		pos.y = mNuiListener:getMotionFileInfo(fIdx,"pos",jIdx,1)/10
+		pos.z = -mNuiListener:getMotionFileInfo(fIdx,"pos",jIdx,2)/10
+	end
+
 	return pos
 end
 
-function getJointPos(idx)
-	local pos = vector3()
-	pos.x = mNuiListener:getJointPos(idx,0)/10
-	pos.y = mNuiListener:getJointPos(idx,1)/10
-	pos.z = -mNuiListener:getJointPos(idx,2)/10
-	return pos
-end
-
-function getJointRotByName(name)
-	local mat = matrix4()
+function getJointRot(jIdx, fIdx)
+	if type(jIdx) == "string" then
+		jIdx = jointsMap[jIdx]
+	end
+	
 	local rot = vectorn(9)
-	local quat = quater()
-	for i=0, 8 do
-		rot:set(i, mNuiListener:getJointRotByName(name,i))
+	if fIdx == nil then
+		for i=0, 8 do
+			rot:set(i, mNuiListener:getJointRot(jIdx,i))
+		end
+	else
+		for i=0, 8 do
+			rot:set(i, mNuiListener:getMotionFileInfo(fIdx,"ori",jIdx,i))
+		end
 	end
 
-	mat:setValue(rot(0),rot(3),rot(6),0,rot(1),rot(4),rot(7),0,rot(2),rot(5),rot(8),0,0,0,0,1)
-
-	quat:setRotation(mat)
-	quat:setValue(quat.w, quat.x, quat.y, -quat.z)
-	return quat 
-end
-
-function getJointRot(idx)
 	local mat = matrix4()
-	local rot = vectorn(9)
-	local quat = quater()
-	for i=0, 8 do
-		rot:set(i, mNuiListener:getJointRot(idx,i))
-	end
 	mat:setValue(rot(0),rot(3),rot(6),0,rot(1),rot(4),rot(7),0,rot(2),rot(5),rot(8),0,0,0,0,1)
 
+	local quat = quater()
 	quat:setRotation(mat)
 	quat:setValue(quat.w, quat.x, quat.y, -quat.z)
-	return quat 
+
+	return quat
 end
 
-function dtor()
-end
-
+function playMotionFile(fIdx)
+	getUserPose(fIdx)
 --[[
+	local tempVec = vector3()
+	for i=1, 24 do
+		if not(i==10 or i==16 or i==20 or i==24) then
+			tempVec.x = mNuiListener:getMotionFileInfo(fIdx,"pos",i,0)/10
+			tempVec.y = mNuiListener:getMotionFileInfo(fIdx,"pos",i,1)/10
+			tempVec.z = -mNuiListener:getMotionFileInfo(fIdx,"pos",i,2)/10
+			dbg.namedDraw("Sphere", tempVec+vector3(0,108,0), "b"..i, "red", 3)
+		end
+	end
+]]
+end
+
 if EventReceiver then
 	--class 'EVR'(EventReceiver)
 	EVR=LUAclass(EventReceiver)
@@ -315,6 +318,34 @@ if EventReceiver then
 	end
 end
 
+curFrame = 0
 function EVR:onFrameChanged(win, iframe)
+	if playingMotion and curFrame < motionSize then 
+		playMotionFile(curFrame)	
+		curFrame = curFrame + 1
+	else
+		playingMotion = false
+		curFrame = 0
+		dbg.eraseAllDrawn()
+	end
+end
+
+Timeline=LUAclass(LuaAnimationObject)
+function Timeline:__init(label, totalTime)
+	self.totalTime=totalTime
+	self:attachTimer(1/30, totalTime)		
+	RE.renderer():addFrameMoveObject(self)
+	RE.motionPanel():motionWin():addSkin(self)
+end
+
+function dtor()
+end
+
+--[[
+function drawLoaderJoints()
+	for i=1, mLoader:numBone()-1 do
+		dbg.namedDraw("Axes", mLoader:bone(i):getFrame(), "axes"..i)
+		--dbg.namedDraw("Sphere", mLoader:bone(i):getFrame().translation, mLoader:bone(i):name(), "red", 3)
+	end
 end
 ]]
