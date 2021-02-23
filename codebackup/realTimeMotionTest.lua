@@ -39,8 +39,8 @@ jointsMap = {
 	["JOINT_RIGHT_ANKLE"]=23	
 }
 
-useDevice = true
---useDevice = false
+--useDevice = true
+useDevice = false
 
 tracking = false
 recording = false
@@ -57,7 +57,9 @@ function ctor()
 	this:widget(0):checkButtonValue(false)
 	this:widget(0):buttonShortcut("t")
 	this:create("Button", "Start Record", "Start Record")
+	this:widget(0):buttonShortcut("s")
 	this:create("Button", "Stop Record", "Stop Record")
+	this:widget(0):buttonShortcut("e")
 	this:create("Input", "Motion Title", "")
 	this:create("Button", "Save Motion", "Save Motion")
 	this:create("Choice", "load Motion file")
@@ -67,6 +69,7 @@ function ctor()
 	end
 	this:widget(0):menuValue(0)
 	this:create("Button", "Play Motion File", "Play Motion File")
+	this:widget(0):buttonShortcut("p")
 --	this:create("Check_Button", "drawAxes", "drawAxes")
 --	this:widget(0):checkButtonValue(false)
 --	this:widget(0):buttonShortcut("d")
@@ -82,24 +85,29 @@ function ctor()
 	mSkin = RE.createVRMLskin(mLoader, false)
 	local s=config.skinScale
 	mSkin:scale(s,s,s)
---[[
+	
+	mSkin2 = RE.createVRMLskin(mLoader, false)
+	local s=config.skinScale
+	mSkin2:scale(s,s,s)
+	mSkin2:setTranslation(0,0,100)
+
 	mMotionDOFcontainer = MotionDOFcontainer(mLoader.dofInfo, config[2])
 	mMotionDOF = mMotionDOFcontainer.mot
 	 
 	for i=0, mMotionDOF:rows()-1 do
 		mMotionDOF:matView():set(i, 1, mMotionDOF:matView()(i,1)*100)
 	end
+	
+	initRootTrans = getInitRootTransf()
 
-	mSkin:applyMotionDOF(mMotionDOF)
-	mSkin:setFrameTime(1/120)
-
-	RE.motionPanel():motionWin():detachSkin(mSkin)
-	RE.motionPanel():motionWin():addSkin(mSkin)
-]]
 	userPose = Pose()
 	userPose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
 	userPose:identity()	
-	mSkin:_setPose(userPose, mLoader)
+
+	mSkin:setPoseDOF(mMotionDOF:row(0))
+	mSkin2:setPoseDOF(mMotionDOF:row(0))
+	--mSkin:_setPose(userPose, mLoader)
+	--mLoader:getPose(userPose)
 
 	mNuiListener = NuiListener()
 	if useDevice then
@@ -107,13 +115,14 @@ function ctor()
 	end
 
 	mTimeline=Timeline("Timeline", 10000)
+	learnFeature()
 end
 
 function frameMove(fElapsedTime)
 	if tracking then
 		mNuiListener:waitUpdate()
+		getUserPose()
 		--drawUserJoints()
-		--getUserPose()
 		if recording then
 			mNuiListener:createRecordedJson()
 		end
@@ -166,6 +175,45 @@ function onCallback(w, userData)
 	end
 end
 
+function getInitRootTransf()
+	local rootPos = mMotionDOF:row(0):toVector3(0)
+	local rootRot = mMotionDOF:row(0):toQuater(3)
+	return transf(rootRot, rootPos)
+end
+
+function learnFeature(frame)
+	local features = matrixn()
+
+	for i=0, mMotionDOF:numFrames()-1 do
+		mLoader:setPoseDOF(mMotionDOF:row(i))
+		features:pushBack(extractFeature(mLoader))
+	end
+
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, mMotionDOF:matView())
+end
+
+function extractFeature(loader)--하드코딩 고치기 
+	local feature=vectorn()
+	feature:setSize(27)
+
+	feature:setVec3(0, loader:bone(18):getFrame().translation)
+	feature:setVec3(3, loader:bone(14):getFrame().translation)
+	feature:setVec3(6, loader:bone(20):getFrame().translation)
+	feature:setVec3(9, loader:bone(16):getFrame().translation)
+	feature:setVec3(12, loader:bone(11):getFrame().translation)
+	feature:setVec3(15, loader:bone(12):getFrame().translation)
+	feature:setVec3(18, loader:bone(7):getFrame().translation)
+	feature:setVec3(21, loader:bone(8):getFrame().translation)
+	feature:setVec3(24, loader:bone(1):getFrame().translation)
+
+	for i=0, 8 do
+		dbg.draw("Sphere", feature:toVector3(i*3), "b"..i, "red", 5)
+	end
+	return feature
+end
+
 function scandir(directory)
     local i, t, popen = 0, {}, io.popen
     local pfile = popen('ls "'..directory..'"')
@@ -178,15 +226,12 @@ function scandir(directory)
 end
 
 function getUserPose(fIdx)
-	local pose = Pose()
-	pose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
-	pose:identity()	
+	--userPose:setRootTransformation(getUserRootTransf(fIdx))
+	userPose:setRootTransformation(initRootTrans)
+	userPose.rotations:assign(setRotJoints(fIdx))
 
-	pose:setRootTransformation(getUserRootTransf(fIdx))
-	pose.rotations:assign(setRotJoints(fIdx))
-
-	userPose = pose	
 	mSkin:_setPose(userPose, mLoader)
+	mLoader:setPose(userPose)
 end
 
 function getUserRootTransf(fIdx) --TODO : y값 조정
@@ -197,7 +242,9 @@ end
 
 function setRotJoints(fIdx)
 	local rots = quaterN() 
-	rots:pushBack(getJointRot("JOINT_WAIST",fIdx)) 
+	--rots:pushBack(getJointRot("JOINT_WAIST",fIdx)) 
+	rots:pushBack(mMotionDOF:row(0):toQuater(3)) 
+	--rots:pushBack(quater(1,0,0,0)) 
 	rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_TORSO",fIdx))
 	rots:pushBack(getUserJointLocalRot("JOINT_TORSO","JOINT_LEFT_COLLAR",fIdx))
 	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_COLLAR","JOINT_NECK",fIdx))
@@ -295,17 +342,10 @@ end
 
 function playMotionFile(fIdx)
 	getUserPose(fIdx)
---[[
-	local tempVec = vector3()
-	for i=1, 24 do
-		if not(i==10 or i==16 or i==20 or i==24) then
-			tempVec.x = mNuiListener:getMotionFileInfo(fIdx,"pos",i,0)/10
-			tempVec.y = mNuiListener:getMotionFileInfo(fIdx,"pos",i,1)/10
-			tempVec.z = -mNuiListener:getMotionFileInfo(fIdx,"pos",i,2)/10
-			dbg.namedDraw("Sphere", tempVec+vector3(0,108,0), "b"..i, "red", 3)
-		end
-	end
-]]
+	
+	local target = vectorn()
+	mIDW:mapping(extractFeature(mLoader), target)
+	mSkin2:setPoseDOF(target)
 end
 
 if EventReceiver then
