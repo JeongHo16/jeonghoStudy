@@ -5,8 +5,14 @@ require("RigidBodyWin/subRoutines/Constraints")
 require("RigidBodyWin/retargetting/kinectTracker")
 
 config_jeongho = {
-	"../Resource/jae/social_p1/social_p1.wrl",
-	"../Resource/jae/social_p1/social_p1_copy.wrl.dof",
+	{
+		"../Resource/jae/social_p1/social_p1.wrl",
+		"../Resource/jae/social_p1/social_p1_copy.wrl.dof",
+	},
+	{
+		"../Resource/jae/social_p2/social_p2.wrl",
+		"../Resource/jae/social_p2/social_p2_copy.wrl.dof",
+	},
 	skinScale=1
 }
 
@@ -70,42 +76,47 @@ function ctor()
 	this:widget(0):menuValue(0)
 	this:create("Button", "Play Motion File", "Play Motion File")
 	this:widget(0):buttonShortcut("p")
---	this:create("Check_Button", "drawAxes", "drawAxes")
---	this:widget(0):checkButtonValue(false)
---	this:widget(0):buttonShortcut("d")
+	this:create("Check_Button", "drawAxes", "drawAxes")
+	this:widget(0):checkButtonValue(false)
+	this:widget(0):buttonShortcut("d")
 	this:updateLayout()
 
-	RE.viewpoint().vpos:set(368, 210, 26)
+	RE.viewpoint().vpos:set(117, 341, 467)
 	RE.viewpoint().vat:set(6, 126, -2)
 	RE.viewpoint():update()
 
-	mLoader=MainLib.VRMLloader(config[1])
-	mLoader:printHierarchy()
+	mLoader=MainLib.VRMLloader(config[1][1])
+	mLoader2=MainLib.VRMLloader(config[2][1])
+--	mLoader:printHierarchy()
+--	mLoader2:printHierarchy()
 	
 	mSkin = RE.createVRMLskin(mLoader, false)
 	local s=config.skinScale
 	mSkin:scale(s,s,s)
 	
-	mSkin2 = RE.createVRMLskin(mLoader, false)
+	mSkin2 = RE.createVRMLskin(mLoader2, false)
 	local s=config.skinScale
 	mSkin2:scale(s,s,s)
-	mSkin2:setTranslation(0,0,100)
+	mSkin2:setTranslation(130,0,0)
 
-	mMotionDOFcontainer = MotionDOFcontainer(mLoader.dofInfo, config[2])
+	mMotionDOFcontainer = MotionDOFcontainer(mLoader.dofInfo, config[1][2])
 	mMotionDOF = mMotionDOFcontainer.mot
-	 
+	mMotionDOFcontainer2 = MotionDOFcontainer(mLoader2.dofInfo, config[2][2])
+	mMotionDOF2 = mMotionDOFcontainer2.mot
+
 	for i=0, mMotionDOF:rows()-1 do
 		mMotionDOF:matView():set(i, 1, mMotionDOF:matView()(i,1)*100)
+		mMotionDOF2:matView():set(i, 1, mMotionDOF2:matView()(i,1)*100)
 	end
 	
-	initRootTrans = getInitRootTransf()
+	initRootTrans = getInitRootTransf(mMotionDOF)
 
 	userPose = Pose()
 	userPose:init(mLoader:numRotJoint(), mLoader:numTransJoint())
 	userPose:identity()	
 
 	mSkin:setPoseDOF(mMotionDOF:row(0))
-	mSkin2:setPoseDOF(mMotionDOF:row(0))
+	mSkin2:setPoseDOF(mMotionDOF2:row(0))
 	--mSkin:_setPose(userPose, mLoader)
 	--mLoader:getPose(userPose)
 
@@ -164,18 +175,16 @@ function onCallback(w, userData)
 			mNuiListener:loadFileToJson(title)
 			motionSize = mNuiListener:getMotionFrameSize()
 		end
---[[
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
 		else
 			dbg.erase("Axes", "axes")
 		end
-]]
 	end
 end
 
-function getInitRootTransf()
+function getInitRootTransf(mMotionDOF)
 	local rootPos = mMotionDOF:row(0):toVector3(0)
 	local rootRot = mMotionDOF:row(0):toQuater(3)
 	return transf(rootRot, rootPos)
@@ -183,15 +192,23 @@ end
 
 function learnFeature(frame)
 	local features = matrixn()
+	local features2 = matrixn()
 
 	for i=0, mMotionDOF:numFrames()-1 do
 		mLoader:setPoseDOF(mMotionDOF:row(i))
 		features:pushBack(extractFeature(mLoader))
 	end
+	for i=0, mMotionDOF2:numFrames()-1 do
+		mLoader2:setPoseDOF(mMotionDOF2:row(i))
+		features2:pushBack(extractFeature(mLoader2))
+	end
 
 	mMetric = math.KovarMetric(true)
 	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
 	mIDW:learn(features, mMotionDOF:matView())
+	mMetric2 = math.KovarMetric(true)
+	mIDW2 = NonlinearFunctionIDW(mMetric2, 30, 2.0)
+	mIDW2:learn(features2, mMotionDOF2:matView())
 end
 
 function extractFeature(loader)--하드코딩 고치기 
@@ -208,9 +225,34 @@ function extractFeature(loader)--하드코딩 고치기
 	feature:setVec3(21, loader:bone(8):getFrame().translation)
 	feature:setVec3(24, loader:bone(1):getFrame().translation)
 
-	for i=0, 8 do
-		dbg.draw("Sphere", feature:toVector3(i*3), "b"..i, "red", 5)
+--	for i=0, 8 do
+--		dbg.draw("Sphere", feature:toVector3(i*3), "b"..i, "red", 5)
+--	end
+	return feature
+end
+
+function extractFeature2(loader)--하드코딩 고치기 
+	local feature=vectorn()
+	feature:setSize(27)
+
+	function convert(num)
+		local conv = vector3()
+		conv:assign(loader:bone(num):getFrame().translation)
+		conv.x = -conv.x
+		conv.z = -conv.z
+		return conv
 	end
+
+	feature:setVec3(0, convert(18))
+	feature:setVec3(3, convert(14))
+	feature:setVec3(6, convert(20))
+	feature:setVec3(9, convert(16))
+	feature:setVec3(12, convert(11))
+	feature:setVec3(15, convert(12))
+	feature:setVec3(18, convert(7))
+	feature:setVec3(21, convert(8))
+	feature:setVec3(24, convert(1))
+
 	return feature
 end
 
@@ -344,8 +386,13 @@ function playMotionFile(fIdx)
 	getUserPose(fIdx)
 	
 	local target = vectorn()
+	local target2 = vectorn()
 	mIDW:mapping(extractFeature(mLoader), target)
-	mSkin2:setPoseDOF(target)
+	mIDW2:mapping(extractFeature2(mLoader), target2)
+	target:setQuater(3, target:toQuater(3):Normalize())
+	target2:setQuater(3, target2:toQuater(3):Normalize())
+	mSkin:setPoseDOF(target)
+	mSkin2:setPoseDOF(target2)
 end
 
 if EventReceiver then
