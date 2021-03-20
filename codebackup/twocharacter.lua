@@ -52,6 +52,8 @@ tracking = false
 recording = false
 playingMotion = false
 motionSize = 0
+offset = 0
+historySize = 5
 
 function ctor()
 	mEventReceiver=EVR()
@@ -87,8 +89,7 @@ function ctor()
 
 	mLoader=MainLib.VRMLloader(config[1][1])
 	mLoader2=MainLib.VRMLloader(config[2][1])
---	mLoader:printHierarchy()
---	mLoader2:printHierarchy()
+	mLoader:printHierarchy()
 	
 	mSkin = RE.createVRMLskin(mLoader, false)
 	local s=config.skinScale
@@ -117,16 +118,16 @@ function ctor()
 
 	mSkin:setPoseDOF(mMotionDOF:row(0))
 	mSkin2:setPoseDOF(mMotionDOF2:row(0))
-	--mSkin:_setPose(userPose, mLoader)
-	--mLoader:getPose(userPose)
 
 	mNuiListener = NuiListener()
 	if useDevice then
 		mNuiListener:startNuitrack()
 	end
 
+	featureHistory = matrixn()
+	learnFeature2()
+
 	mTimeline=Timeline("Timeline", 10000)
-	learnFeature()
 end
 
 function frameMove(fElapsedTime)
@@ -174,6 +175,7 @@ function onCallback(w, userData)
 			playingMotion = true
 			mNuiListener:loadFileToJson(title)
 			motionSize = mNuiListener:getMotionFrameSize()
+			prePlayMotion()
 		end
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
@@ -190,25 +192,21 @@ function getInitRootTransf(mMotionDOF)
 	return transf(rootRot, rootPos)
 end
 
-function learnFeature(frame)
-	local features = matrixn()
-	local features2 = matrixn()
+function getOffset(skin, skin2)
+	local root1 = skin:getTranslation()
+	local root2 = skin2:getTranslation()
+	return root1-root2
+end
 
-	for i=0, mMotionDOF:numFrames()-1 do
-		mLoader:setPoseDOF(mMotionDOF:row(i))
-		features:pushBack(extractFeature(mLoader))
+function extractPreFeature(loader, fIdx, historySize)
+	local histMat = matrixn()
+	
+	for i=fIdx-historySize, fIdx-1 do
+		loader:setPoseDOF(mMotionDOF:row(i))
+		histMat:pushBack(extractFeature(loader))
 	end
-	for i=0, mMotionDOF2:numFrames()-1 do
-		mLoader2:setPoseDOF(mMotionDOF2:row(i))
-		features2:pushBack(extractFeature(mLoader2))
-	end
-
-	mMetric = math.KovarMetric(true)
-	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
-	mIDW:learn(features, mMotionDOF:matView())
-	mMetric2 = math.KovarMetric(true)
-	mIDW2 = NonlinearFunctionIDW(mMetric2, 30, 2.0)
-	mIDW2:learn(features2, mMotionDOF2:matView())
+	
+	return histMat:toVector()
 end
 
 function extractFeature(loader)--하드코딩 고치기 
@@ -226,12 +224,13 @@ function extractFeature(loader)--하드코딩 고치기
 	feature:setVec3(24, loader:bone(1):getFrame().translation)
 
 --	for i=0, 8 do
---		dbg.draw("Sphere", feature:toVector3(i*3), "b"..i, "red", 5)
+--		dbg.draw("Sphere", feature:toVector3(i*3), "b"..i, "red", 3)
 --	end
+
 	return feature
 end
 
-function extractFeature2(loader)--하드코딩 고치기 
+function extractFeature2(loader) 
 	local feature=vectorn()
 	feature:setSize(27)
 
@@ -240,7 +239,7 @@ function extractFeature2(loader)--하드코딩 고치기
 		conv:assign(loader:bone(num):getFrame().translation)
 		conv.x = -conv.x
 		conv.z = -conv.z
-		return conv
+		return conv-getOffset(mSkin,mSkin2)
 	end
 
 	feature:setVec3(0, convert(18))
@@ -252,6 +251,10 @@ function extractFeature2(loader)--하드코딩 고치기
 	feature:setVec3(18, convert(7))
 	feature:setVec3(21, convert(8))
 	feature:setVec3(24, convert(1))
+
+	for i=0, 8 do
+		dbg.draw("Sphere", feature:toVector3(i*3), "ib"..i, "blue", 3)
+	end
 
 	return feature
 end
@@ -268,12 +271,17 @@ function scandir(directory)
 end
 
 function getUserPose(fIdx)
-	--userPose:setRootTransformation(getUserRootTransf(fIdx))
 	userPose:setRootTransformation(initRootTrans)
 	userPose.rotations:assign(setRotJoints(fIdx))
 
 	mSkin:_setPose(userPose, mLoader)
 	mLoader:setPose(userPose)
+
+	--local poseV = vectorn()
+	--mLoader:getPoseDOF(poseV)
+	
+	--return poseV
+	return extractFeature(mLoader)
 end
 
 function getUserRootTransf(fIdx) --TODO : y값 조정
@@ -382,17 +390,49 @@ function getJointRot(jIdx, fIdx)
 	return quat
 end
 
+function learnFeature()
+	local features = matrixn()
+	
+	for i=0, mMotionDOF:numFrames()-1 do
+		mLoader:setPoseDOF(mMotionDOF:row(i))
+		features:pushBack(extractFeature(mLoader))
+	end
+
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, mMotionDOF:matView())
+end
+
+function learnFeature2()
+	local features = matrixn()
+	local matdata = matrixn()
+
+	for i=historySize, mMotionDOF:numFrames()-1 do
+		features:pushBack(extractPreFeature(mLoader, i, historySize))
+		matdata:pushBack(mMotionDOF:row(i))
+	end
+	
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, matdata)
+end
+
+function prePlayMotion()
+	local mat = matrixn()
+	for i=0, historySize-1 do
+		mat:pushBack(getUserPose(i))
+	end
+	featureHistory:assign(mat)
+end
+
 function playMotionFile(fIdx)
-	getUserPose(fIdx)
+	featureHistory:pushBack(getUserPose(fIdx))
 	
 	local target = vectorn()
-	local target2 = vectorn()
-	mIDW:mapping(extractFeature(mLoader), target)
-	mIDW2:mapping(extractFeature2(mLoader), target2)
+	mIDW:mapping(featureHistory:sub(featureHistory:rows()-historySize, featureHistory:rows(),0,0):toVector(), target)
+	--mIDW:mapping(extractFeature(mLoader), target) --1번 윗 줄 2번
 	target:setQuater(3, target:toQuater(3):Normalize())
-	target2:setQuater(3, target2:toQuater(3):Normalize())
 	mSkin:setPoseDOF(target)
-	mSkin2:setPoseDOF(target2)
 end
 
 if EventReceiver then
@@ -405,14 +445,16 @@ if EventReceiver then
 	end
 end
 
-curFrame = 0
+--curFrame = 0 -- 1번 
+curFrame = historySize -- 2번 
 function EVR:onFrameChanged(win, iframe)
 	if playingMotion and curFrame < motionSize then 
 		playMotionFile(curFrame)	
 		curFrame = curFrame + 1
 	else
 		playingMotion = false
-		curFrame = 0
+	--	curFrame = 0 --1번 
+		curFrame = historySize --2번
 		dbg.eraseAllDrawn()
 	end
 end
