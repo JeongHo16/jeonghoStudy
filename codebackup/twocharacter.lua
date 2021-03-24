@@ -185,7 +185,7 @@ function onCallback(w, userData)
 			prePlayMotion()
 		end
 	elseif w:id()=="Select learn type" then
-		local learnType = this:findWidget("Select learn type"):menuValue()
+		learnType = this:findWidget("Select learn type"):menuValue()
 	elseif w:id()=="learn" then
 		learnFeature(learnType)
 	elseif w:id()=="drawAxes" then
@@ -258,6 +258,7 @@ function extractFeature(loader, fIdx, historySize)
 	if learnType == 1 then
 		return getFeature(loader)
 	elseif learnType == 2 then
+		print(fIdx)
 		for i=fIdx-historySize, fIdx-1 do
 			loader:setPoseDOF(mMotionDOF:row(i))
 			histMat:pushBack(getFeature(loader))
@@ -325,7 +326,8 @@ function getUserPose(fIdx)
 	--mLoader:getPoseDOF(poseV)
 	
 	--return poseV
-	return extractFeature(mLoader)
+	print("getUserPose")
+	return extractFeature(mLoader, fIdx, historySize)
 end
 
 function getUserRootTransf(fIdx) --TODO : y값 조정
@@ -443,7 +445,7 @@ function learnFeature(state)
 			mLoader:setPoseDOF(mMotionDOF:row(i))
 			features:pushBack(extractFeature(mLoader))
 		end
-		matdata:assgin(mMotionDOF:matView())
+		matdata:assign(mMotionDOF:matView())
 	elseif state == 2 then
 		for i=historySize, mMotionDOF:numFrames()-1 do
 			features:pushBack(extractFeature(mLoader, i, historySize))
@@ -464,6 +466,7 @@ function learnFeature(state)
 	mMetric = math.KovarMetric(true)
 	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
 	mIDW:learn(features, matdata)
+	print("learned by "..learnType)
 end
 
 --[[
@@ -511,22 +514,37 @@ function learnFeature3()
 end
 ]]
 function prePlayMotion()
-	if learnType == 2 or learnType == 3 then
+	if learnType == 2 then
 		local mat = matrixn()
-		for i=0, historySize-1 do
+		for i=historySize, 2*historySize-1 do
+			mat:pushBack(getUserPose(i))
+		end
+		featureHistory:assign(mat)
+	elseif learnType == 3 then
+		local mat = matrixn()
+		for i=historySize/2, historySize/2-1 do
 			mat:pushBack(getUserPose(i))
 		end
 		featureHistory:assign(mat)
 	end
+--	if learnType == 2 or learnType == 3 then
+--		local mat = matrixn()
+--		for i=0, historySize-1 do
+--			print(i)
+--			mat:pushBack(getUserPose(i))
+--		end
+--		featureHistory:assign(mat)
+--	end
 end
 
 function playMotionFile(fIdx)
 	local target = vectorn()
 
 	if learnType == 0 then
-		getUserPose(fIdx)
+		return getUserPose(fIdx) -- return 안하면 맨밑 두줄에서 에러남 
 	elseif learnType == 1 then
-		mIDW:mapping(extractFeature(mLoader), target) --1번
+		getUserPose(fIdx)
+		mIDW:mapping(extractFeature(mLoader), target) 
 	elseif learnType == 2 then
 		featureHistory:pushBack(getUserPose(fIdx))
 		mIDW:mapping(featureHistory:sub(featureHistory:rows()-historySize, featureHistory:rows(),0,0):toVector(), target)--2번
@@ -561,6 +579,8 @@ function getCurFrame()
 end
 
 curFrame = getCurFrame() 
+print("cur")
+print(curFrame)
 function EVR:onFrameChanged(win, iframe)
 	if learnType ~= 3 then
 		if playingMotion and curFrame < motionSize then 
