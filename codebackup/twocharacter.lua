@@ -72,10 +72,12 @@ function ctor()
 	this:create("Input", "Motion Title", "")
 	this:create("Button", "Save Motion", "Save Motion")
 	this:create("Choice", "Select learn type")
-	this:widget(0):menuSize(3)
-	this:widget(0):menuItem(0, "current")
-	this:widget(0):menuItem(1, "past")
-	this:widget(0):menuItem(2, "past and future")
+	this:widget(0):menuSize(4)
+	this:widget(0):menuItem(0, "kinectRaw")
+	this:widget(0):menuItem(1, "current")
+	this:widget(0):menuItem(2, "past")
+	this:widget(0):menuItem(3, "past and future")
+	this:create("Button", "learn", "learn")
 	this:create("Choice", "load Motion file")
 	this:widget(0):menuSize(#fileList)
 	for i=1, #fileList do
@@ -131,7 +133,6 @@ function ctor()
 	end
 
 	featureHistory = matrixn()
-	learnFeature(learnType)
 
 	mTimeline=Timeline("Timeline", 10000)
 end
@@ -185,6 +186,8 @@ function onCallback(w, userData)
 		end
 	elseif w:id()=="Select learn type" then
 		local learnType = this:findWidget("Select learn type"):menuValue()
+	elseif w:id()=="learn" then
+		learnFeature(learnType)
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
@@ -200,18 +203,21 @@ function getInitRootTransf(mMotionDOF)
 	return transf(rootRot, rootPos)
 end
 
+--[[
 function getOffset(skin, skin2)
 	local root1 = skin:getTranslation()
 	local root2 = skin2:getTranslation()
 	return root1-root2
 end
+]]
 
+--[[
 function extractPreFeature(loader, fIdx, historySize)
 	local histMat = matrixn()
 	
 	for i=fIdx-historySize, fIdx-1 do
 		loader:setPoseDOF(mMotionDOF:row(i))
-		histMat:pushBack(extractFeature(loader))
+		histMat:pushBack(getFeature(loader))
 	end
 	
 	return histMat:toVector()
@@ -222,13 +228,14 @@ function extractFutPreFeature(loader, fIdx, historySize)
 	
 	for i=fIdx-historySize, fIdx+historySize-1 do
 		loader:setPoseDOF(mMotionDOF:row(i))
-		histMat:pushBack(extractFeature(loader))
+		histMat:pushBack(getFeature(loader))
 	end
 	
 	return histMat:toVector()
 end
+]]
 
-function extractFeature(loader)--하드코딩 고치기 
+function getFeature(loader)--하드코딩 고치기 
 	local feature=vectorn()
 	feature:setSize(27)
 
@@ -242,11 +249,27 @@ function extractFeature(loader)--하드코딩 고치기
 	feature:setVec3(21, loader:bone(8):getFrame().translation)
 	feature:setVec3(24, loader:bone(1):getFrame().translation)
 
---	for i=0, 8 do
---		dbg.draw("Sphere", feature:toVector3(i*3), "b"..i, "red", 3)
---	end
-
 	return feature
+end
+
+function extractFeature(loader, fIdx, historySize)
+	local histMat = matrixn()
+
+	if learnType == 1 then
+		return getFeature(loader)
+	elseif learnType == 2 then
+		for i=fIdx-historySize, fIdx-1 do
+			loader:setPoseDOF(mMotionDOF:row(i))
+			histMat:pushBack(getFeature(loader))
+		end
+		return histMat:toVector()
+	elseif learnType == 3 then
+		for i=fIdx-historySize, fIdx+historySize-1 do
+			loader:setPoseDOF(mMotionDOF:row(i))
+			histMat:pushBack(getFeature(loader))
+		end
+		return histMat:toVector()
+	end
 end
 
 --[[
@@ -411,39 +434,26 @@ function getJointRot(jIdx, fIdx)
 	return quat
 end
 
---function learnFeature()
---	local features = matrixn()
---	
---	for i=0, mMotionDOF:numFrames()-1 do
---		mLoader:setPoseDOF(mMotionDOF:row(i))
---		features:pushBack(extractFeature(mLoader))
---	end
---
---	mMetric = math.KovarMetric(true)
---	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
---	mIDW:learn(features, mMotionDOF:matView())
---end
-
 function learnFeature(state)
 	local features = matrixn()
 	local matdata = matrixn()
 
-	if state == 0 then 
+	if state == 1 then 
 		for i=0, mMotionDOF:numFrames()-1 do
 			mLoader:setPoseDOF(mMotionDOF:row(i))
 			features:pushBack(extractFeature(mLoader))
 		end
 		matdata:assgin(mMotionDOF:matView())
-	else if state == 1 then
+	elseif state == 2 then
 		for i=historySize, mMotionDOF:numFrames()-1 do
-			features:pushBack(extractPreFeature(mLoader, i, historySize))
+			features:pushBack(extractFeature(mLoader, i, historySize))
 			matdata:pushBack(mMotionDOF:row(i))
 		end
-	else if state ==2 then
+	elseif state == 3 then
 		local size = historySize/2
 
 		for i=size, mMotionDOF:numFrames()-size-1 do
-			features:pushBack(extractFutPreFeature(mLoader, i, size))
+			features:pushBack(extractFeature(mLoader, i, size))
 			matdata:pushBack(mMotionDOF:row(i))
 		end
 	end
@@ -453,42 +463,58 @@ function learnFeature(state)
 	mIDW:learn(features, matdata)
 end
 
---function learnFeature2()
---	local features = matrixn()
---	local matdata = matrixn()
---
---	for i=historySize, mMotionDOF:numFrames()-1 do
---		features:pushBack(extractPreFeature(mLoader, i, historySize))
---		matdata:pushBack(mMotionDOF:row(i))
---	end
---	
---	mMetric = math.KovarMetric(true)
---	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
---	mIDW:learn(features, matdata)
---end
-
---function learnFeature3()
---	local features = matrixn()
---	local matdata = matrixn()
---
---	local size = historySize/2
---
---	for i=size, mMotionDOF:numFrames()-size-1 do
---		features:pushBack(extractFutPreFeature(mLoader, i, size))
---		matdata:pushBack(mMotionDOF:row(i))
---	end
---	
---	mMetric = math.KovarMetric(true)
---	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
---	mIDW:learn(features, matdata)
---end
-
-function prePlayMotion()
-	local mat = matrixn()
-	for i=0, historySize-1 do
-		mat:pushBack(getUserPose(i))
+--[[
+function learnFeature()
+	local features = matrixn()
+	
+	for i=0, mMotionDOF:numFrames()-1 do
+		mLoader:setPoseDOF(mMotionDOF:row(i))
+		features:pushBack(extractFeature(mLoader))
 	end
-	featureHistory:assign(mat)
+
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, mMotionDOF:matView())
+end
+
+function learnFeature2()
+	local features = matrixn()
+	local matdata = matrixn()
+
+	for i=historySize, mMotionDOF:numFrames()-1 do
+		features:pushBack(extractPreFeature(mLoader, i, historySize))
+		matdata:pushBack(mMotionDOF:row(i))
+	end
+	
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, matdata)
+end
+
+function learnFeature3()
+	local features = matrixn()
+	local matdata = matrixn()
+
+	local size = historySize/2
+
+	for i=size, mMotionDOF:numFrames()-size-1 do
+		features:pushBack(extractFutPreFeature(mLoader, i, size))
+		matdata:pushBack(mMotionDOF:row(i))
+	end
+	
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, matdata)
+end
+]]
+function prePlayMotion()
+	if learnType == 2 or learnType == 3 then
+		local mat = matrixn()
+		for i=0, historySize-1 do
+			mat:pushBack(getUserPose(i))
+		end
+		featureHistory:assign(mat)
+	end
 end
 
 function playMotionFile(fIdx)
@@ -514,9 +540,17 @@ if EventReceiver then
 	end
 end
 
---curFrame = 0 -- 1번 
---curFrame = historySize -- 2번 
-curFrame = historySize/2 -- 3번
+function getCurFrame()
+	if learnType == 0 or learnType == 1 then
+		return 0
+	elseif learnType == 2 then
+		return historySize
+	elseif learnType == 3 then
+		return historySize/2
+	end
+end
+
+curFrame = getCurFrame() 
 function EVR:onFrameChanged(win, iframe)
 --	if playingMotion and curFrame < motionSize then 
 --		getUserPose(curFrame)
