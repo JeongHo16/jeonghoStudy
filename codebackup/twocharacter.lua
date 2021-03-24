@@ -131,7 +131,7 @@ function ctor()
 	end
 
 	featureHistory = matrixn()
-	learnFeature3()
+	learnFeature(learnType)
 
 	mTimeline=Timeline("Timeline", 10000)
 end
@@ -411,48 +411,77 @@ function getJointRot(jIdx, fIdx)
 	return quat
 end
 
-function learnFeature()
-	local features = matrixn()
-	
-	for i=0, mMotionDOF:numFrames()-1 do
-		mLoader:setPoseDOF(mMotionDOF:row(i))
-		features:pushBack(extractFeature(mLoader))
-	end
+--function learnFeature()
+--	local features = matrixn()
+--	
+--	for i=0, mMotionDOF:numFrames()-1 do
+--		mLoader:setPoseDOF(mMotionDOF:row(i))
+--		features:pushBack(extractFeature(mLoader))
+--	end
+--
+--	mMetric = math.KovarMetric(true)
+--	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+--	mIDW:learn(features, mMotionDOF:matView())
+--end
 
-	mMetric = math.KovarMetric(true)
-	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
-	mIDW:learn(features, mMotionDOF:matView())
-end
-
-function learnFeature2()
+function learnFeature(state)
 	local features = matrixn()
 	local matdata = matrixn()
 
-	for i=historySize, mMotionDOF:numFrames()-1 do
-		features:pushBack(extractPreFeature(mLoader, i, historySize))
-		matdata:pushBack(mMotionDOF:row(i))
+	if state == 0 then 
+		for i=0, mMotionDOF:numFrames()-1 do
+			mLoader:setPoseDOF(mMotionDOF:row(i))
+			features:pushBack(extractFeature(mLoader))
+		end
+		matdata:assgin(mMotionDOF:matView())
+	else if state == 1 then
+		for i=historySize, mMotionDOF:numFrames()-1 do
+			features:pushBack(extractPreFeature(mLoader, i, historySize))
+			matdata:pushBack(mMotionDOF:row(i))
+		end
+	else if state ==2 then
+		local size = historySize/2
+
+		for i=size, mMotionDOF:numFrames()-size-1 do
+			features:pushBack(extractFutPreFeature(mLoader, i, size))
+			matdata:pushBack(mMotionDOF:row(i))
+		end
 	end
-	
+
 	mMetric = math.KovarMetric(true)
 	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
 	mIDW:learn(features, matdata)
 end
 
-function learnFeature3()
-	local features = matrixn()
-	local matdata = matrixn()
+--function learnFeature2()
+--	local features = matrixn()
+--	local matdata = matrixn()
+--
+--	for i=historySize, mMotionDOF:numFrames()-1 do
+--		features:pushBack(extractPreFeature(mLoader, i, historySize))
+--		matdata:pushBack(mMotionDOF:row(i))
+--	end
+--	
+--	mMetric = math.KovarMetric(true)
+--	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+--	mIDW:learn(features, matdata)
+--end
 
-	local size = historySize/2
-
-	for i=size, mMotionDOF:numFrames()-size-1 do
-		features:pushBack(extractFutPreFeature(mLoader, i, size))
-		matdata:pushBack(mMotionDOF:row(i))
-	end
-	
-	mMetric = math.KovarMetric(true)
-	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
-	mIDW:learn(features, matdata)
-end
+--function learnFeature3()
+--	local features = matrixn()
+--	local matdata = matrixn()
+--
+--	local size = historySize/2
+--
+--	for i=size, mMotionDOF:numFrames()-size-1 do
+--		features:pushBack(extractFutPreFeature(mLoader, i, size))
+--		matdata:pushBack(mMotionDOF:row(i))
+--	end
+--	
+--	mMetric = math.KovarMetric(true)
+--	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+--	mIDW:learn(features, matdata)
+--end
 
 function prePlayMotion()
 	local mat = matrixn()
