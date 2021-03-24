@@ -52,8 +52,9 @@ tracking = false
 recording = false
 playingMotion = false
 motionSize = 0
-offset = 0
-historySize = 5
+historySize = 4 
+
+learnType = 0
 
 function ctor()
 	mEventReceiver=EVR()
@@ -70,6 +71,11 @@ function ctor()
 	this:widget(0):buttonShortcut("e")
 	this:create("Input", "Motion Title", "")
 	this:create("Button", "Save Motion", "Save Motion")
+	this:create("Choice", "Select learn type")
+	this:widget(0):menuSize(3)
+	this:widget(0):menuItem(0, "current")
+	this:widget(0):menuItem(1, "past")
+	this:widget(0):menuItem(2, "past and future")
 	this:create("Choice", "load Motion file")
 	this:widget(0):menuSize(#fileList)
 	for i=1, #fileList do
@@ -125,7 +131,7 @@ function ctor()
 	end
 
 	featureHistory = matrixn()
-	learnFeature2()
+	learnFeature3()
 
 	mTimeline=Timeline("Timeline", 10000)
 end
@@ -177,6 +183,8 @@ function onCallback(w, userData)
 			motionSize = mNuiListener:getMotionFrameSize()
 			prePlayMotion()
 		end
+	elseif w:id()=="Select learn type" then
+		local learnType = this:findWidget("Select learn type"):menuValue()
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
@@ -209,6 +217,17 @@ function extractPreFeature(loader, fIdx, historySize)
 	return histMat:toVector()
 end
 
+function extractFutPreFeature(loader, fIdx, historySize)
+	local histMat = matrixn()
+	
+	for i=fIdx-historySize, fIdx+historySize-1 do
+		loader:setPoseDOF(mMotionDOF:row(i))
+		histMat:pushBack(extractFeature(loader))
+	end
+	
+	return histMat:toVector()
+end
+
 function extractFeature(loader)--하드코딩 고치기 
 	local feature=vectorn()
 	feature:setSize(27)
@@ -230,6 +249,7 @@ function extractFeature(loader)--하드코딩 고치기
 	return feature
 end
 
+--[[
 function extractFeature2(loader) 
 	local feature=vectorn()
 	feature:setSize(27)
@@ -258,6 +278,7 @@ function extractFeature2(loader)
 
 	return feature
 end
+]]
 
 function scandir(directory)
     local i, t, popen = 0, {}, io.popen
@@ -417,6 +438,22 @@ function learnFeature2()
 	mIDW:learn(features, matdata)
 end
 
+function learnFeature3()
+	local features = matrixn()
+	local matdata = matrixn()
+
+	local size = historySize/2
+
+	for i=size, mMotionDOF:numFrames()-size-1 do
+		features:pushBack(extractFutPreFeature(mLoader, i, size))
+		matdata:pushBack(mMotionDOF:row(i))
+	end
+	
+	mMetric = math.KovarMetric(true)
+	mIDW = NonlinearFunctionIDW(mMetric, 30, 2.0)
+	mIDW:learn(features, matdata)
+end
+
 function prePlayMotion()
 	local mat = matrixn()
 	for i=0, historySize-1 do
@@ -426,11 +463,14 @@ function prePlayMotion()
 end
 
 function playMotionFile(fIdx)
-	featureHistory:pushBack(getUserPose(fIdx))
+	--featureHistory:pushBack(getUserPose(fIdx))
+	featureHistory:pushBack(getUserPose(fIdx+(historySize/2)))
+	getUserPose(fIdx)
 	
 	local target = vectorn()
-	mIDW:mapping(featureHistory:sub(featureHistory:rows()-historySize, featureHistory:rows(),0,0):toVector(), target)
-	--mIDW:mapping(extractFeature(mLoader), target) --1번 윗 줄 2번
+	mIDW:mapping(featureHistory:sub(fIdx-(historySize/2), fIdx+(historySize/2),0,0):toVector(), target)--3번
+	--mIDW:mapping(featureHistory:sub(featureHistory:rows()-historySize, featureHistory:rows(),0,0):toVector(), target)--2번
+	--mIDW:mapping(extractFeature(mLoader), target) --1번
 	target:setQuater(3, target:toQuater(3):Normalize())
 	mSkin:setPoseDOF(target)
 end
@@ -446,15 +486,22 @@ if EventReceiver then
 end
 
 --curFrame = 0 -- 1번 
-curFrame = historySize -- 2번 
+--curFrame = historySize -- 2번 
+curFrame = historySize/2 -- 3번
 function EVR:onFrameChanged(win, iframe)
-	if playingMotion and curFrame < motionSize then 
+--	if playingMotion and curFrame < motionSize then 
+--		getUserPose(curFrame)
+--		--playMotionFile(curFrame)	
+--		curFrame = curFrame + 1
+	if playingMotion and curFrame < motionSize-historySize then 
+		--getUserPose(curFrame)
 		playMotionFile(curFrame)	
 		curFrame = curFrame + 1
 	else
 		playingMotion = false
-	--	curFrame = 0 --1번 
-		curFrame = historySize --2번
+		--curFrame = 0 --1번 
+		--curFrame = historySize --2번
+		curFrame = historySize/2 --3번
 		dbg.eraseAllDrawn()
 	end
 end
