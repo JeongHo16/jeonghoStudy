@@ -456,6 +456,9 @@ function learnFeature(state)
 			features:pushBack(extractFeature(mLoader, i, size))
 			matdata:pushBack(mMotionDOF:row(i))
 		end
+	else
+		print("learnType is kinectRaw")
+		dbg.console()
 	end
 
 	mMetric = math.KovarMetric(true)
@@ -518,14 +521,21 @@ function prePlayMotion()
 end
 
 function playMotionFile(fIdx)
-	--featureHistory:pushBack(getUserPose(fIdx))
-	featureHistory:pushBack(getUserPose(fIdx+(historySize/2)))
-	getUserPose(fIdx)
-	
 	local target = vectorn()
-	mIDW:mapping(featureHistory:sub(fIdx-(historySize/2), fIdx+(historySize/2),0,0):toVector(), target)--3번
-	--mIDW:mapping(featureHistory:sub(featureHistory:rows()-historySize, featureHistory:rows(),0,0):toVector(), target)--2번
-	--mIDW:mapping(extractFeature(mLoader), target) --1번
+
+	if learnType == 0 then
+		getUserPose(fIdx)
+	elseif learnType == 1 then
+		mIDW:mapping(extractFeature(mLoader), target) --1번
+	elseif learnType == 2 then
+		featureHistory:pushBack(getUserPose(fIdx))
+		mIDW:mapping(featureHistory:sub(featureHistory:rows()-historySize, featureHistory:rows(),0,0):toVector(), target)--2번
+	elseif learnType == 3 then
+		featureHistory:pushBack(getUserPose(fIdx+(historySize/2)))
+		getUserPose(fIdx)
+		mIDW:mapping(featureHistory:sub(fIdx-(historySize/2), fIdx+(historySize/2),0,0):toVector(), target)--3번
+	end
+
 	target:setQuater(3, target:toQuater(3):Normalize())
 	mSkin:setPoseDOF(target)
 end
@@ -552,20 +562,24 @@ end
 
 curFrame = getCurFrame() 
 function EVR:onFrameChanged(win, iframe)
---	if playingMotion and curFrame < motionSize then 
---		getUserPose(curFrame)
---		--playMotionFile(curFrame)	
---		curFrame = curFrame + 1
-	if playingMotion and curFrame < motionSize-historySize then 
-		--getUserPose(curFrame)
-		playMotionFile(curFrame)	
-		curFrame = curFrame + 1
+	if learnType ~= 3 then
+		if playingMotion and curFrame < motionSize then 
+			playMotionFile(curFrame)	
+			curFrame = curFrame + 1
+		else
+			playingMotion = false
+			curFrame = getCurFrame()
+			dbg.eraseAllDrawn()
+		end
 	else
-		playingMotion = false
-		--curFrame = 0 --1번 
-		--curFrame = historySize --2번
-		curFrame = historySize/2 --3번
-		dbg.eraseAllDrawn()
+		if playingMotion and curFrame < motionSize-historySize then 
+			playMotionFile(curFrame)	
+			curFrame = curFrame + 1
+		else
+			playingMotion = false
+			curFrame = getCurFrame()
+			dbg.eraseAllDrawn()
+		end
 	end
 end
 
