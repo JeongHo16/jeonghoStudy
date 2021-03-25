@@ -52,9 +52,10 @@ tracking = false
 recording = false
 playingMotion = false
 motionSize = 0
-historySize = 4 
+historySize = 10 
 
 learnType = 0
+playFrame = 0
 
 function ctor()
 	mEventReceiver=EVR()
@@ -188,6 +189,8 @@ function onCallback(w, userData)
 		learnType = this:findWidget("Select learn type"):menuValue()
 	elseif w:id()=="learn" then
 		learnFeature(learnType)
+		playFrame = getPlayFrame()
+		print(playFrame)
 	elseif w:id()=="drawAxes" then
 		if w:checkButtonValue() then
 			dbg.namedDraw("Axes", transf(quater(1,0,0,0), vector3(0,0,100)), "axes")
@@ -258,7 +261,6 @@ function extractFeature(loader, fIdx, historySize)
 	if learnType == 1 then
 		return getFeature(loader)
 	elseif learnType == 2 then
-		print(fIdx)
 		for i=fIdx-historySize, fIdx-1 do
 			loader:setPoseDOF(mMotionDOF:row(i))
 			histMat:pushBack(getFeature(loader))
@@ -326,7 +328,6 @@ function getUserPose(fIdx)
 	--mLoader:getPoseDOF(poseV)
 	
 	--return poseV
-	print("getUserPose")
 	return extractFeature(mLoader, fIdx, historySize)
 end
 
@@ -527,14 +528,6 @@ function prePlayMotion()
 		end
 		featureHistory:assign(mat)
 	end
---	if learnType == 2 or learnType == 3 then
---		local mat = matrixn()
---		for i=0, historySize-1 do
---			print(i)
---			mat:pushBack(getUserPose(i))
---		end
---		featureHistory:assign(mat)
---	end
 end
 
 function playMotionFile(fIdx)
@@ -568,7 +561,7 @@ if EventReceiver then
 	end
 end
 
-function getCurFrame()
+function getPlayFrame()
 	if learnType == 0 or learnType == 1 then
 		return 0
 	elseif learnType == 2 then
@@ -578,26 +571,23 @@ function getCurFrame()
 	end
 end
 
-curFrame = getCurFrame() 
-print("cur")
-print(curFrame)
 function EVR:onFrameChanged(win, iframe)
 	if learnType ~= 3 then
-		if playingMotion and curFrame < motionSize then 
-			playMotionFile(curFrame)	
-			curFrame = curFrame + 1
+		if playingMotion and playFrame < motionSize then 
+			playMotionFile(playFrame)	
+			playFrame = playFrame + 1
 		else
 			playingMotion = false
-			curFrame = getCurFrame()
+			playFrame = getPlayFrame()
 			dbg.eraseAllDrawn()
 		end
 	else
-		if playingMotion and curFrame < motionSize-historySize then 
-			playMotionFile(curFrame)	
-			curFrame = curFrame + 1
+		if playingMotion and playFrame < motionSize-historySize/2 then 
+			playMotionFile(playFrame)	
+			playFrame = playFrame + 1
 		else
 			playingMotion = false
-			curFrame = getCurFrame()
+			playFrame = getPlayFrame()
 			dbg.eraseAllDrawn()
 		end
 	end
