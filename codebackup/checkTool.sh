@@ -69,11 +69,11 @@ STUDENT=(
 9103920209
 )
 
-count=0
+count=1
 students_num=${#STUDENT[@]}
 echo $students_num   #학생 수 보여줌
 
-echo clone = c, pull = p, execute all = e
+echo clone = c, pull = p, execute all = e, PA01 = 1
 echo "==========================================================================="
 read input
 
@@ -81,35 +81,39 @@ if [ "$input" == "c" ];then
 	for sNum in "${STUDENT[@]}";do
 		echo "==========================================================================="
 		git clone "https://$USER:$PW@$GIT$CLASS1$CLASS2$CLASS1$sNum"
-		count=$(($count+1))
 		echo "$CLASS1$sNum is cloned	$count"
+		count=$(($count+1))
 	done
 elif [ "$input" == "p" ];then
 	for sNum in "${STUDENT[@]}";do
 		currentDirectory=$CLASS1$sNum
 		echo "==========================================================================="
-		count=$(($count+1))
 		echo "$currentDirectory		$count"
 		cd ./$currentDirectory
 		git pull
 		cd ../
+		count=$(($count+1))
 	done
 elif [ "$input" == "e" ];then
-	workon test # virtualenv activate
+	workon cg # virtualenv activate
 	echo Type Assignment Number and Problem Number.
 	read num1 num2
+	echo Type First Student Number
+	read sNum
+	if [[ -n "$sNum" ]] && [[ $sNum -gt 0 ]]; then
+		count=$sNum
+	fi
 	echo Start check
-	for sNum in "${STUDENT[@]}";do
-		currentDirectory=$CLASS1$sNum
+
+	while [ $count -ne $(($students_num+1)) ];
+	do
+		currentDirectory=$CLASS1${STUDENT[$(($count-1))]}
 		echo "==========================================================================="
-		count=$(($count+1))
 		echo "$currentDirectory		$count"
 		read
 
 		cd ./$currentDirectory
-		#dir=$(ls -l | grep d | wc -l)
-		#echo $dir
-		assignmentName=$(find . -name "$sNum-$num1-$num2.py")
+		assignmentName=$(find . -name "${STUDENT[$(($count-1))]}-$num1-$num2.py")
 		if [ -n "${assignmentName}" ]; then
 			python3 ${assignmentName:2}
 			read
@@ -118,6 +122,53 @@ elif [ "$input" == "e" ];then
 			echo no file
 		fi
 		cd ../
+
+		count=$(($count+1))
+	done
+	deactivate
+elif [ "$input" == "1" ];then
+	workon cg # virtualenv activate
+	echo Type First Student Number
+	read sNum
+	if [[ -n "$sNum" ]] && [[ $sNum -gt 0 ]]; then
+		count=$sNum
+	fi
+	echo Start check
+
+	while [ $count -ne $(($students_num+1)) ];
+	do
+		currentDirectory=$CLASS1${STUDENT[$(($count-1))]}
+		echo "==========================================================================="
+		echo "$currentDirectory		$count"
+		read
+
+		cd ./$currentDirectory
+		assignmentName=$(find . -name "rayTracer.py")
+		if [ -n "${assignmentName}" ]; then
+			echo start raytracing...
+			python3 ${assignmentName:2} ../PA1_2021/scenes/four-spheres.xml
+			echo Complete four-spheres
+			python3 ${assignmentName:2} ../PA1_2021/scenes/one-sphere.xml
+			echo Complete one-sphere
+			python3 ${assignmentName:2} ../PA1_2021/scenes/one-box.xml
+			echo Complete one-box
+			python3 ${assignmentName:2} ../PA1_2021/scenes/two-boxes.xml
+			echo Complete two-boxes
+			python3 ${assignmentName:2} ../PA1_2021/scenes/wire-box-axon.xml
+			echo Complete wire-box-axon
+			python3 ${assignmentName:2} ../PA1_2021/scenes/wire-box-per.xml
+			echo Complete wire-box-per
+			python3 ${assignmentName:2} ../PA1_2021/scenes/wire-box-orth.xml
+			echo Complete wire-box-orth
+			echo Type any key to open soruce code
+			read
+			vi ${assignmentName:2}
+		else
+			echo no file
+		fi
+		cd ../
+
+		count=$(($count+1))
 	done
 	deactivate
 fi
