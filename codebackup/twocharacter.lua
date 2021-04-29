@@ -1,17 +1,17 @@
-require("config") 
+require("config")
 require("module")
 require("common")
 require("RigidBodyWin/subRoutines/Constraints")
-require("RigidBodyWin/retargetting/kinectTracker")
+--require("RigidBodyWin/retargetting/kinectTracker")
 
 config_jeongho = {
 	{
-		"../Resource/jae/social_p1/social_p1.wrl",
-		"../Resource/jae/social_p1/social_p1_copy.wrl.dof",
+		"../../ETRI_2020/Resource/jae/social_p1/social_p1.wrl",
+		"../../ETRI_2020/Resource/jae/social_p1/social_p1_copy.wrl.dof",
 	},
 	{
-		"../Resource/jae/social_p2/social_p2.wrl",
-		"../Resource/jae/social_p2/social_p2_copy.wrl.dof",
+		"../../ETRI_2020/Resource/jae/social_p2/social_p2.wrl",
+		"../../ETRI_2020/Resource/jae/social_p2/social_p2_copy.wrl.dof",
 	},
 	skinScale=1
 }
@@ -61,7 +61,7 @@ playEndFrame = 0
 function ctor()
 	mEventReceiver=EVR()
 
-	fileList = scandir("jsonDatas")
+	fileList = scandir("../../ETRI_2020/work/jsonDatas")
 
 	this:create("Button", "Check Viewpoint", "Check Viewpoint")
 	this:create("Check_Button", "Tracking", "Tracking")
