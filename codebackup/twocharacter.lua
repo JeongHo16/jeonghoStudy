@@ -1,7 +1,8 @@
-require("config")
+require("config") 
 require("module")
 require("common")
 require("RigidBodyWin/subRoutines/Constraints")
+require("RigidBodyWin/subRoutines/VelocityFields")
 --require("RigidBodyWin/retargetting/kinectTracker")
 
 config_jeongho = {
@@ -61,7 +62,7 @@ playEndFrame = 0
 function ctor()
 	mEventReceiver=EVR()
 
-	fileList = scandir("../../ETRI_2020/work/jsonDatas")
+	fileList = scandir("jsonDatas")
 
 	this:create("Button", "Check Viewpoint", "Check Viewpoint")
 	this:create("Check_Button", "Tracking", "Tracking")
@@ -99,7 +100,7 @@ function ctor()
 
 	mLoader=MainLib.VRMLloader(config[1][1])
 	mLoader2=MainLib.VRMLloader(config[2][1])
-	--mLoader:printHierarchy()
+	mLoader:printHierarchy()
 	
 	mSkin = RE.createVRMLskin(mLoader, false)
 	local s=config.skinScale
@@ -134,9 +135,9 @@ function ctor()
 		mNuiListener:startNuitrack()
 	end
 
-	featureHistory = matrixn()
+	mDeriv=VelocityFields(mLoader, mMotionDOFcontainer, mMotionDOF:row(0), {frameRate=30, alignRoot=true})
 
-	mTimeline=Timeline("Timeline", 10000)
+	mTimeline=Timeline("Timeline", mMotionDOF:numFrames())
 end
 
 function frameMove(fElapsedTime)
@@ -205,7 +206,7 @@ function getInitRootTransf(mMotionDOF)
 	return transf(rootRot, rootPos)
 end
 
-function getFeature(loader)--하드코딩 고치기 
+function getFeature(loader)--TODO 하드코딩 고치기 -> featureMap 추가 like jointsMap
 	local feature=vectorn()
 	feature:setSize(27)
 
@@ -255,44 +256,13 @@ function extractKinectFeature(loader, fIdx, historySize)
 		end
 	elseif learnType == 3 then
 		for i=fIdx-historySize, fIdx+historySize-1 do
-			getUserPose(fIdx)
+			getUserPose(i)
 			histMat:pushBack(getFeature(loader))
 		end
 	end
 
 	return histMat:toVector()
 end
-
---[[
-function extractFeature2(loader) 
-	local feature=vectorn()
-	feature:setSize(27)
-
-	function convert(num)
-		local conv = vector3()
-		conv:assign(loader:bone(num):getFrame().translation)
-		conv.x = -conv.x
-		conv.z = -conv.z
-		return conv-getOffset(mSkin,mSkin2)
-	end
-
-	feature:setVec3(0, convert(18))
-	feature:setVec3(3, convert(14))
-	feature:setVec3(6, convert(20))
-	feature:setVec3(9, convert(16))
-	feature:setVec3(12, convert(11))
-	feature:setVec3(15, convert(12))
-	feature:setVec3(18, convert(7))
-	feature:setVec3(21, convert(8))
-	feature:setVec3(24, convert(1))
-
-	for i=0, 8 do
-		dbg.draw("Sphere", feature:toVector3(i*3), "ib"..i, "blue", 3)
-	end
-
-	return feature
-end
-]]
 
 function scandir(directory)
     local i, t, popen = 0, {}, io.popen
@@ -308,15 +278,10 @@ end
 function getUserPose(fIdx) --fIdx가 있으면 녹화된 파일에서 불러오기
 	userPose:setRootTransformation(initRootTrans)
 	userPose.rotations:assign(setRotJoints(fIdx))
+	--print(userPose.rotations:size())
 
 	mLoader:setPose(userPose)
 	mSkin:_setPose(userPose, mLoader)
-end
-
-function getUserRootTransf(fIdx) --TODO : y값 조정
-	local rootRot = getJointRot("JOINT_WAIST", fIdx)
-	local rootPos = getJointPos("JOINT_WAIST", fIdx)
-	return transf(rootRot, rootPos+vector3(0,128,0))
 end
 
 function setRotJoints(fIdx)
@@ -324,7 +289,7 @@ function setRotJoints(fIdx)
 	--rots:pushBack(getJointRot("JOINT_WAIST",fIdx)) 
 	rots:pushBack(mMotionDOF:row(0):toQuater(3)) 
 	--rots:pushBack(quater(1,0,0,0)) 
-	rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_TORSO",fIdx))
+	rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_TORSO",fIdx))--여기가 1번
 	rots:pushBack(getUserJointLocalRot("JOINT_TORSO","JOINT_LEFT_COLLAR",fIdx))
 	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_COLLAR","JOINT_NECK",fIdx))
 	rots:pushBack(getUserJointLocalRot("JOINT_NECK","JOINT_HEAD",fIdx))
@@ -338,22 +303,25 @@ function setRotJoints(fIdx)
 	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_COLLAR","JOINT_RIGHT_SHOULDER",fIdx))
 	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_SHOULDER","JOINT_RIGHT_ELBOW",fIdx))
 	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_ELBOW","JOINT_RIGHT_WRIST",fIdx))
+	--python.FC('test_sample_python', 'saveJointAngles', getUserJointLocalRot("JOINT_RIGHT_ELBOW","JOINT_RIGHT_WRIST",fIdx):rotationAngle())
 
-	--rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_LEFT_HIP",fIdx))
-	--rots:pushBack(getUserJointLocalRot("JOINT_LEFT_HIP","JOINT_LEFT_KNEE",fIdx))
-	--rots:pushBack(getUserJointLocalRot("JOINT_LEFT_KNEE","JOINT_LEFT_ANKLE",fIdx))
+--	rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_LEFT_HIP",fIdx))
+--	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_HIP","JOINT_LEFT_KNEE",fIdx))
+--	rots:pushBack(getUserJointLocalRot("JOINT_LEFT_KNEE","JOINT_LEFT_ANKLE",fIdx))
 	rots:pushBack(quater(1,0,0,0))
 	rots:pushBack(quater(1,0,0,0))
 	rots:pushBack(quater(1,0,0,0)) -- LEFT_ANKLE
 	rots:pushBack(quater(1,0,0,0)) -- LEFT_TOE
 
-	--rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_RIGHT_HIP",fIdx))
-	--rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_HIP","JOINT_RIGHT_KNEE",fIdx))
-	--rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_KNEE","JOINT_RIGHT_ANKLE",fIdx))
+--	rots:pushBack(getUserJointLocalRot("JOINT_WAIST","JOINT_RIGHT_HIP",fIdx))
+--	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_HIP","JOINT_RIGHT_KNEE",fIdx))
+--	rots:pushBack(getUserJointLocalRot("JOINT_RIGHT_KNEE","JOINT_RIGHT_ANKLE",fIdx))
 	rots:pushBack(quater(1,0,0,0))
 	rots:pushBack(quater(1,0,0,0))
 	rots:pushBack(quater(1,0,0,0)) -- RIGHT_ANKLE
 	rots:pushBack(quater(1,0,0,0)) -- RIGHT_TOE
+
+	--print(rots:size())
 
 	return rots
 end
@@ -361,7 +329,7 @@ end
 function getUserJointLocalRot(preRot, curRot, fIdx)
 	preRot = getJointRot(preRot, fIdx)
 	curRot = getJointRot(curRot, fIdx)
-	curRot:toLocal(preRot, curRot)
+	curRot:toLocal(preRot, curRot) -- 여기 내부에서 align 시키네
 	return curRot
 end
 
@@ -426,19 +394,22 @@ function learnFeature(state)
 	if state == 1 then 
 		for i=0, mMotionDOF:numFrames()-1 do
 			features:pushBack(extractFeature(mLoader, i))
+			matdata:pushBack(mMotionDOF:row(i)..mMotionDOF2:row(i))
 		end
-		matdata:assign(mMotionDOF:matView())
+		--matdata:assign(mMotionDOF:matView())
 	elseif state == 2 then
 		for i=historySize, mMotionDOF:numFrames()-1 do
 			features:pushBack(extractFeature(mLoader, i, historySize))
-			matdata:pushBack(mMotionDOF:row(i))
+			matdata:pushBack(mMotionDOF:row(i)..mMotionDOF2:row(i))
+			--matdata:pushBack(mMotionDOF:row(i))
 		end
 	elseif state == 3 then
 		historySize = historySize/2
 
 		for i=historySize, mMotionDOF:numFrames()-historySize-1 do
 			features:pushBack(extractFeature(mLoader, i, historySize))
-			matdata:pushBack(mMotionDOF:row(i))
+			matdata:pushBack(mMotionDOF:row(i)..mMotionDOF2:row(i))
+			--matdata:pushBack(mMotionDOF:row(i))
 		end
 	else
 		print("learnType is kinectRaw")
@@ -452,20 +423,28 @@ function learnFeature(state)
 end
 
 function playMotionFile(fIdx)
+	local temp = vectorn()
 	local target = vectorn()
+	local target2 = vectorn()
 
 	if learnType == 0 then
 		return getUserPose(fIdx) -- return 안하면 맨밑 두줄에서 에러남 
 	elseif learnType == 1 then
-		mIDW:mapping(extractKinectFeature(mLoader, fIdx), target) 
+		mIDW:mapping(extractKinectFeature(mLoader, fIdx), temp) 
 	elseif learnType == 2 then
-		mIDW:mapping(extractKinectFeature(mLoader, fIdx, historySize), target)
+		mIDW:mapping(extractKinectFeature(mLoader, fIdx, historySize), temp)
 	elseif learnType == 3 then
-		mIDW:mapping(extractKinectFeature(mLoader, fIdx, historySize), target)
+		mIDW:mapping(extractKinectFeature(mLoader, fIdx, historySize), temp)
 	end
 
+	target:assign(temp:range(0, temp:size()-1))
+	target2:assign(temp:range(temp:size()/2, temp:size()))
+
 	target:setQuater(3, target:toQuater(3):Normalize())
+	--target2:setQuater(3, target:toQuater(3):Normalize()) --Normalize하면 마주보지 않음
+
 	mSkin:setPoseDOF(target)
+	mSkin2:setPoseDOF(target2)
 end
 
 if EventReceiver then
@@ -492,10 +471,25 @@ function setPlayFrame()
 	end
 end
 
+--elapsedFrame=0
 function EVR:onFrameChanged(win, iframe)
+	mSkin:setPoseDOF(mMotionDOF:row(iframe))
+	--elapsedFrame=iframe
+
+	python.FC('test_sample_python', 'saveJointAngles', mLoader:bone(13):getFrame().rotation:rotationAngle())
+	print(mLoader:bone(11):getLocalFrame().rotation:rotationAngle())
+--	mLoader:bone(13):getFrame().rotation:rotationAngle()
+--	mSkin2:setPoseDOF(mMotionDOF2:row(iframe))
+--[[
+	if playingMotion and playStartFrame == playEndFrame then
+		python.FC('test_sample_python', 'makeResult', motionSize)
+	end
+]]
 	if playingMotion and playStartFrame < playEndFrame then 
 		playMotionFile(playStartFrame)	
 		playStartFrame = playStartFrame + 1
+		--dbg.namedDraw("Sphere", getJointPos(14,playStartFrame), iframe, "red", 3)
+		--dbg.namedDraw("Sphere", mLoader:bone(13):getFrame().translation, iframe, "red", 3)
 	else
 		playingMotion = false
 		setPlayFrame()
@@ -506,14 +500,22 @@ end
 Timeline=LUAclass(LuaAnimationObject)
 function Timeline:__init(label, totalTime)
 	self.totalTime=totalTime
-	self:attachTimer(1/30, totalTime)		
+	self:attachTimer(1/120, totalTime)
 	RE.renderer():addFrameMoveObject(self)
 	RE.motionPanel():motionWin():addSkin(self)
 end
 
 function dtor()
+	python.FC('test_sample_python', 'makeResult', elapsedFrame)
 end
 
+--[[
+function getUserRootTransf(fIdx) --y값 조정 -> root 말고 발끝을 ground?
+	local rootRot = getJointRot("JOINT_WAIST", fIdx)
+	local rootPos = getJointPos("JOINT_WAIST", fIdx)
+	return transf(rootRot, rootPos+vector3(0,128,0))
+end
+]]
 --[[
 function drawLoaderJoints()
 	for i=1, mLoader:numBone()-1 do
